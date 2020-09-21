@@ -60,7 +60,7 @@ args = parser.parse_args()
 """ For test images in a folder """
 image_list, _, _ = file_utils.get_files('/data/CRAFT-pytorch/test')
 
-result_folder = '/data/CRAFT-pytorch/result/'
+result_folder = './data/CRAFT-pytorch/result/'
 if not os.path.isdir(result_folder):
     os.mkdir(result_folder)
 
