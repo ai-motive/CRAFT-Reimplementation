@@ -136,3 +136,9 @@ def sort_rectangle(poly):
             p1_index = (p3_index + 2) % 4
             p2_index = (p3_index + 3) % 4
             return poly[[p0_index, p1_index, p2_index, p3_index]], angle
+
+def convert_rect2_to_rect4(rect):
+    #  rect = [x_min, x_max, y_min, y_max].
+    x1, y1, x2, y2 = rect[0], rect[2], rect[1], rect[2]
+    x3, y3, x4, y4 = rect[1], rect[3], rect[0], rect[3]
+    return [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]

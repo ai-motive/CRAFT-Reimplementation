@@ -531,12 +531,12 @@ class ICDAR2013(craft_base_dataset):
 
 
 class ICDAR2015(craft_base_dataset):
-    def __init__(self, net, icdar2015_folder, target_size=768, viz=False, debug=False):
+    def __init__(self, net, icdar2015_folder, target_size=768, viz=False, debug=False, img_dir='ch4_training_images', gt_dir='ch4_training_localization_transcription_gt'):
         super(ICDAR2015, self).__init__(target_size, viz, debug)
         self.net = net
         self.net.eval()
-        self.img_folder = os.path.join(icdar2015_folder, 'ch4_training_images')
-        self.gt_folder = os.path.join(icdar2015_folder, 'ch4_training_localization_transcription_gt')
+        self.img_folder = os.path.join(icdar2015_folder, img_dir)
+        self.gt_folder = os.path.join(icdar2015_folder, gt_dir)
         imagenames = os.listdir(self.img_folder)
         self.images_path = []
         for imagename in imagenames:

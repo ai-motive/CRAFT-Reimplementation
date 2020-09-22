@@ -47,7 +47,7 @@ parser.add_argument('--trained_model', default='weights/craft_mlt_25k.pth', type
 parser.add_argument('--text_threshold', default=0.7, type=float, help='text confidence threshold')
 parser.add_argument('--low_text', default=0.4, type=float, help='text low-bound score')
 parser.add_argument('--link_threshold', default=0.4, type=float, help='link confidence threshold')
-parser.add_argument('--cuda', default=True, type=str2bool, help='Use cuda to train model')
+parser.add_argument('--cuda', default=False, type=str2bool, help='Use cuda to train model')
 parser.add_argument('--canvas_size', default=2240, type=int, help='image size for inference')
 parser.add_argument('--mag_ratio', default=2, type=float, help='image magnification ratio')
 parser.add_argument('--poly', default=False, action='store_true', help='enable polygon type')
@@ -58,7 +58,7 @@ args = parser.parse_args()
 
 
 """ For test images in a folder """
-image_list, _, _ = file_utils.get_files('/data/CRAFT-pytorch/test')
+image_list, _, _ = file_utils.get_files('./data/CRAFT-pytorch/icdar2015/test/ch4_test_images')
 
 result_folder = './data/CRAFT-pytorch/result/'
 if not os.path.isdir(result_folder):
@@ -112,7 +112,7 @@ def test_net(net, image, text_threshold, link_threshold, low_text, cuda, poly):
 
 def test(modelpara):
     # load net
-    net = CRAFT()     # initialize
+    net = CRAFT(pretrained=False)     # initialize
 
     print('Loading weights from checkpoint {}'.format(modelpara))
     if args.cuda:
@@ -138,7 +138,7 @@ def test(modelpara):
         # save score text
         filename, file_ext = os.path.splitext(os.path.basename(image_path))
         mask_file = result_folder + "/res_" + filename + '_mask.jpg'
-        #cv2.imwrite(mask_file, score_text)
+        # cv2.imwrite(mask_file, score_text)
 
         file_utils.saveResult(image_path, image[:,:,::-1], polys, dirname=result_folder)
 
