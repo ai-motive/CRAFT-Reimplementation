@@ -163,7 +163,8 @@ def main(args):
             utils.folder_exists(rst_model_dir, create_=True)
             test(rst_model_path)
             # test('/data/CRAFT-pytorch/craft_mlt_25k.pth')
-            getresult()
+            # TODO : 수정필요
+            # getresult(result_path='./data/CRAFT-pytorch/result')
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()

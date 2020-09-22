@@ -346,7 +346,7 @@ def eval_2015(res_folder):
     rrc_evaluation_funcs.main_evaluation(params, default_evaluation_params, validate_data, evaluate_method)
 
 
-def getresult():
+def getresult(result_path):
     # rrc_evaluation_funcs.main_evaluation(None, default_evaluation_params, validate_data, evaluate_method)
     #eval_2015('../../test')
-    eval_2015('./data/CRAFT-pytorch/result')
+    eval_2015(result_path)
