@@ -57,13 +57,6 @@ parser.add_argument('--test_folder', default='/data/', type=str, help='folder pa
 args = parser.parse_args()
 
 
-""" For test images in a folder """
-image_list, _, _ = file_utils.get_files('./data/CRAFT-pytorch/icdar2015/test/ch4_test_images')
-
-result_folder = './data/CRAFT-pytorch/result/'
-if not os.path.isdir(result_folder):
-    os.mkdir(result_folder)
-
 def test_net(net, image, text_threshold, link_threshold, low_text, cuda, poly):
     t0 = time.time()
 
@@ -110,15 +103,15 @@ def test_net(net, image, text_threshold, link_threshold, low_text, cuda, poly):
 
 
 
-def test(modelpara):
+def test(model_path, img_dir, rst_dir):
     # load net
     net = CRAFT(pretrained=False)     # initialize
 
-    print('Loading weights from checkpoint {}'.format(modelpara))
+    print('Loading weights from checkpoint {}'.format(model_path))
     if args.cuda:
-        net.load_state_dict(copyStateDict(torch.load(modelpara)))
+        net.load_state_dict(copyStateDict(torch.load(model_path)))
     else:
-        net.load_state_dict(copyStateDict(torch.load(modelpara, map_location='cpu')))
+        net.load_state_dict(copyStateDict(torch.load(model_path, map_location='cpu')))
 
     if args.cuda:
         net = net.cuda()
@@ -130,6 +123,9 @@ def test(modelpara):
     t = time.time()
 
     # load data
+    """ For test images in a folder """
+    image_list, _, _ = file_utils.get_files(img_dir)
+
     for k, image_path in enumerate(image_list):
         print("Test image {:d}/{:d}: {:s}".format(k+1, len(image_list), image_path), end='\r')
         image = imgproc.loadImage(image_path)
@@ -137,9 +133,9 @@ def test(modelpara):
         bboxes, polys, score_text = test_net(net, image, args.text_threshold, args.link_threshold, args.low_text, args.cuda, args.poly)
         # save score text
         filename, file_ext = os.path.splitext(os.path.basename(image_path))
-        mask_file = result_folder + "/res_" + filename + '_mask.jpg'
+        mask_file = rst_dir + "/res_" + filename + '_mask.jpg'
         # cv2.imwrite(mask_file, score_text)
 
-        file_utils.saveResult(image_path, image[:,:,::-1], polys, dirname=result_folder)
+        file_utils.saveResult(image_path, image[:,:,::-1], polys, dirname=rst_dir)
 
     print("elapsed time : {}s".format(time.time() - t))

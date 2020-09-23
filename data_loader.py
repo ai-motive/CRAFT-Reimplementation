@@ -531,16 +531,19 @@ class ICDAR2013(craft_base_dataset):
 
 
 class ICDAR2015(craft_base_dataset):
-    def __init__(self, net, icdar2015_folder, target_size=768, viz=False, debug=False, img_dir='ch4_training_images', gt_dir='ch4_training_localization_transcription_gt'):
+    def __init__(self, net, icdar2015_folder, target_size=768,
+                 viz=False, debug=False,
+                 img_dir='ch4_training_images', gt_dir='ch4_training_localization_transcription_gt'):
         super(ICDAR2015, self).__init__(target_size, viz, debug)
         self.net = net
         self.net.eval()
         self.img_folder = os.path.join(icdar2015_folder, img_dir)
         self.gt_folder = os.path.join(icdar2015_folder, gt_dir)
-        imagenames = os.listdir(self.img_folder)
+        img_fnames = os.listdir(self.img_folder)
+        img_fnames = sorted(img_fnames, key=lambda x: int(x.replace(".jpg", "").split('_')[-1]))
         self.images_path = []
-        for imagename in imagenames:
-            self.images_path.append(imagename)
+        for fname in img_fnames:
+            self.images_path.append(fname)
 
     def __getitem__(self, index):
         return self.pull_item(index)

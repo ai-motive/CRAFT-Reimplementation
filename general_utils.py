@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
-""" # Updated in 20/09/01 """
+""" # Updated in 20/09/23 """
 import coloredlogs
 import logging
 import configparser
@@ -1482,7 +1482,7 @@ def save_dict_to_json_file(dict_dat, json_fname, logger=get_stdout_logger()):
     :return:
     """
     with open(json_fname, "w") as f:
-        json.dump(dict_dat, f)
+        json.dump(dict_dat, f, sort_keys=True, indent=4)
     if logger:
         logger.info()
 
