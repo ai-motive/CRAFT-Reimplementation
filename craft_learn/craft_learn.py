@@ -19,27 +19,29 @@ _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 def main_generate(ini, logger=None):
     utils.folder_exists(ini['gt_path'], create_=True)
 
-    img_fnames = utils.get_filenames(ini['img_path'], extensions=utils.IMG_EXTENSIONS)
-    ann_fnames = utils.get_filenames(ini['ann_path'], extensions=utils.META_EXTENSION)
+    img_fnames = sorted(utils.get_filenames(ini['img_path'], extensions=utils.IMG_EXTENSIONS))
+    ann_fnames = sorted(utils.get_filenames(ini['ann_path'], extensions=utils.META_EXTENSION))
     logger.info(" [GENERATE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
-    for idx, fname in enumerate(img_fnames):
-        logger.info(" [GENERATE-OCR] # Processing {} ({:d}/{:d})".format(fname, (idx + 1), len(img_fnames)))
+    for idx, img_fname in enumerate(img_fnames):
+        logger.info(" [GENERATE-OCR] # Processing {} ({:d}/{:d})".format(img_fname, (idx + 1), len(img_fnames)))
 
-        dir_name, core_name, ext = utils.split_fname(fname)
-        img = utils.imread(fname, color_fmt='RGB')
+        _, img_core_name, img_ext = utils.split_fname(img_fname)
+        img = utils.imread(img_fname, color_fmt='RGB')
 
         # Load json
         ann_fname = ann_fnames[idx]
-        with open(ann_fname) as json_file:
-            json_data = json.load(json_file)
-            objects = json_data['objects']
-            # pprint.pprint(objects)
+        _, ann_core_name, _ = utils.split_fname(ann_fname)
+        if ann_core_name == img_core_name + img_ext:
+            with open(ann_fname) as json_file:
+                json_data = json.load(json_file)
+                objects = json_data['objects']
+                # pprint.pprint(objects)
 
         bboxes = []
         for obj in objects:
             class_name = obj['classTitle']
-            if class_name in ['problem_whole', 'ignore', 'graph_diagrams']:
+            if class_name in ['problem_whole', 'graph_diagrams']:
                 continue
 
             [x1, y1], [x2, y2] = obj['points']['exterior']
@@ -50,7 +52,7 @@ def main_generate(ini, logger=None):
             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
             bboxes.append(rect4)
 
-        file_utils.saveResult(img_file=core_name, img=img, boxes=bboxes, dirname=ini['gt_path'])
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'], save_img_=True)
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -173,7 +175,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'TRAIN' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
