@@ -4,18 +4,14 @@ import torch
 import torch.utils.data as data
 import argparse
 import time
+import general_utils as utils
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
-from test import test
 from data_loader import ICDAR2015
-
-###import file#######
 from mseloss import Maploss
 from collections import OrderedDict
-from eval.script import getresult
 from craft import CRAFT
 from torch.autograd import Variable
-import general_utils as utils
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +21,7 @@ _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 def init_ini(ini):
     dict = {}
     dict['cuda'] = str2bool(ini['cuda'])
-    dict['pretrain_model_path'] = ini['pretrain_model_path']
+    dict['model_path'] = ini['model_path']
     dict['resume'] = ini['resume']
     dict['train_ratio'] = float(ini['train_ratio'])
     dict['batch_size'] = int(ini['batch_size'])
@@ -64,12 +60,11 @@ def adjust_learning_rate(optimizer, gamma, step, learning_rate):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-
 def main(args, logger=None):
 
     # Load image & gt files
-    img_fnames = utils.get_filenames(args.train_img_path, extensions=utils.IMG_EXTENSIONS)
-    gt_fnames = utils.get_filenames(args.train_gt_path, extensions=utils.TEXT_EXTENSIONS)
+    img_fnames = utils.get_filenames(args.img_path, extensions=utils.IMG_EXTENSIONS)
+    gt_fnames = utils.get_filenames(args.gt_path, extensions=utils.TEXT_EXTENSIONS)
     img_dir, _, _ = utils.split_fname(img_fnames[0])
     gt_dir, _, _ = utils.split_fname(gt_fnames[0])
     train_dir, img_dir_name, _ = utils.split_fname(img_dir)
@@ -77,10 +72,10 @@ def main(args, logger=None):
     logger.info(" [TRAIN] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
     # Load model info.
-    model_dir, model_name, model_ext = utils.split_fname(args.pretrain_model_path)
+    model_dir, model_name, model_ext = utils.split_fname(args.model_path)
 
     net = CRAFT(pretrained=False)
-    net.load_state_dict(copyStateDict(torch.load(args.pretrain_model_path)))
+    net.load_state_dict(copyStateDict(torch.load(args.model_path)))
     net = net.cuda()
 
     net = torch.nn.DataParallel(net, device_ids=[0]).cuda()
@@ -103,7 +98,7 @@ def main(args, logger=None):
     loss_time = 0
     loss_value = 0
     compare_loss = 1
-    for epoch in range(1000):
+    for epoch in range(10000):
         train_time_st = time.time()
         loss_value = 0
         if epoch % 50 == 0 and epoch != 0:
@@ -151,7 +146,7 @@ def main(args, logger=None):
             #                '/data/CRAFT-pytorch/real_weights/lower_loss.pth')
 
             # Epoch이 +50마다 저장
-            if epoch % 50 == 0 and epoch != 0:
+            if epoch % 10 == 0 and epoch != 0:
                 logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
                 rst_model_dir = os.path.join(args.model_root_path, 'model')
                 rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)
@@ -170,14 +165,13 @@ def main(args, logger=None):
     logger.info(" [TRAIN] # Total train data processed !!!")
     return True
 
-
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--cuda', default=True, type=str2bool, help='Use CUDA to train model')
-    parser.add_argument("--pretrain_model_path", required=True, type=str, help="pretrain model path")
-    parser.add_argument("--train_img_path", required=True, type=str, help="Train image file path")
-    parser.add_argument("--train_gt_path", required=True, type=str, help="Train ground truth file path")
+    parser.add_argument("--model_path", required=True, type=str, help="pretrain model path")
+    parser.add_argument("--img_path", required=True, type=str, help="Train image file path")
+    parser.add_argument("--gt_path", required=True, type=str, help="Train ground truth file path")
     parser.add_argument('--resume', default=None, type=str, help='Checkpoint state_dict file to resume training from')
     parser.add_argument('--batch_size', default=128, type=int, help='batch size of training')
     parser.add_argument('--learning_rate', default=3.2768e-5, type=float, help='initial learning rate')
@@ -197,9 +191,9 @@ def parse_arguments(argv):
 
 SELF_TEST_ = True
 OP_MODE = 'TRAIN'
-PRETRAIN_MODEL_PATH = "./pretrain/craft_mlt_25k.pth"
-TRAIN_IMG_PATH = "./data/CRAFT-pytorch/Light_SSen(top)/train/img/"
-TRAIN_GT_PATH = "./data/CRAFT-pytorch/Light_SSen(top)/train/gt/"
+MODEL_PATH = "./pretrain/craft_mlt_25k.pth"
+IMG_PATH = "./data/CRAFT-pytorch/Light_SSen(top)/train/img/"
+GT_PATH = "./data/CRAFT-pytorch/Light_SSen(top)/train/gt/"
 MODEL_ROOT_PATH = "./pretrain/"
 
 
@@ -208,9 +202,9 @@ if __name__ == "__main__":
         if SELF_TEST_:
             sys.argv.extend(["--op_mode", OP_MODE])
             sys.argv.extend(["--cuda", 'True'])
-            sys.argv.extend(["--pretrain_model_path", PRETRAIN_MODEL_PATH])
-            sys.argv.extend(["--train_img_path", TRAIN_IMG_PATH])
-            sys.argv.extend(["--train_gt_path", TRAIN_GT_PATH])
+            sys.argv.extend(["--model_path", MODEL_PATH])
+            sys.argv.extend(["--img_path", IMG_PATH])
+            sys.argv.extend(["--gt_path", GT_PATH])
             sys.argv.extend(["--resume"])
             sys.argv.extend(["--batch_size", '2'])
             sys.argv.extend(["--learning_rate", '3.2768e-5'])
@@ -226,11 +220,3 @@ if __name__ == "__main__":
             sys.argv.extend(["--help"])
 
     main(parse_arguments(sys.argv[1:]))
-
-
-
-
-
-
-
-
