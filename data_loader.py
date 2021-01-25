@@ -540,7 +540,8 @@ class ICDAR2015(craft_base_dataset):
         self.img_folder = os.path.join(icdar2015_folder, img_dir)
         self.gt_folder = os.path.join(icdar2015_folder, gt_dir)
         img_fnames = os.listdir(self.img_folder)
-        img_fnames = sorted(img_fnames, key=lambda x: int(x.replace(".jpg", "").split('_')[-1]))
+        # img_fnames = sorted(img_fnames, key=lambda x: int(x.replace(".jpg", "").split('_')[-1])) # default
+        img_fnames = sorted(img_fnames) # default
         self.images_path = []
         for fname in img_fnames:
             self.images_path.append(fname)

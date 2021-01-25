@@ -3,6 +3,7 @@ import os
 import numpy as np
 import cv2
 import imgproc
+import general_utils as utils
 
 # borrowed from https://github.com/lengstrom/fast-style-transfer/blob/master/src/utils.py
 def get_files(img_dir):
@@ -55,7 +56,14 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
         with open(res_file, 'w') as f:
             for i, box in enumerate(boxes):
                 poly = np.array(box).astype(np.int32).reshape((-1))
-                strResult = ','.join([str(p) for p in poly]) + '\r\n'
+                print(texts[i])
+                if texts is not None:
+                    if texts[i] == '':
+                        strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
+                    else:
+                        strResult = ','.join([str(p) for p in poly]) + ',' + texts[i] + '\r\n'
+                else:
+                    strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
                 # poly = np.array(box).astype(np.int32)
                 # min_x = np.min(poly[:,0])
                 # max_x = np.max(poly[:,0])
@@ -81,3 +89,38 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
         if save_img_:
             cv2.imwrite(res_img_file, img)
 
+
+def saveResult15(img_file, boxes, dirname='./result/', verticals=None, texts=None, save_img_=False, mode='train'):
+    """ save text detection result one by one
+    Args:
+        img_file (str): image file name
+        polys (array): array of result file
+    Return:
+        None
+    """
+    # make result file list
+    filename, file_ext = os.path.splitext(os.path.basename(img_file))
+
+    # result directory
+    gt_file = os.path.join(dirname, "est_" + filename + '.txt')
+
+    for dir in [dirname]:
+        if not os.path.isdir(dir):
+            os.mkdir(dir)
+    if not(utils.file_exists(gt_file)):
+        with open(gt_file, 'w') as f:
+            for i, box in enumerate(boxes):
+                poly = np.array(box).astype(np.int32).reshape((-1))
+
+                if mode == 'train':
+                    if texts is not None:
+                        if texts[i] == '':
+                            strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
+                        else:
+                            strResult = ','.join([str(p) for p in poly]) + ',' + texts[i] + '\r\n'
+                    else:
+                        strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
+                else:
+                    strResult = ','.join([str(p) for p in poly]) + '\r\n'
+
+                f.write(strResult)
