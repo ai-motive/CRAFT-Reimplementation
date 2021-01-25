@@ -4,8 +4,8 @@ import file_utils
 import os
 import imgproc
 import cv2
-from eval.icdar2015.script import eval_2015
-from eval.icdar2013.script import eval_2013
+from eval.script import eval_2015
+# from eval.script import eval_2013
 
 
 def eval2013(craft, test_folder, result_folder, text_threshold=0.7, link_threshold=0.4, low_text=0.4):

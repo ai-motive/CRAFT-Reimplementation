@@ -5,6 +5,9 @@ from eval import rrc_evaluation_funcs
 import importlib
 import zipfile
 import os
+import numpy as np
+import Polygon as plg
+import general_utils as utils
 def evaluation_imports():
     """
     evaluation_imports: Dictionary ( key = module name , value = alias  )  with python modules used in the evaluation. 
@@ -22,8 +25,10 @@ def default_evaluation_params():
     return {
         'IOU_CONSTRAINT': 0.5,
         'AREA_PRECISION_CONSTRAINT': 0.5,
-        'GT_SAMPLE_NAME_2_ID': 'gt_img_([0-9]+).txt',
-        'DET_SAMPLE_NAME_2_ID': 'res_img_([0-9]+).txt',
+        'GT_SAMPLE_NAME_2_ID': 'gt_.*_([0-9]+).txt',
+        'DET_SAMPLE_NAME_2_ID': 'est_.*_([0-9]+).txt',
+        # 'GT_SAMPLE_NAME_2_ID': 'gt_img_([0-9]+).txt',
+        # 'DET_SAMPLE_NAME_2_ID': 'res_img_([0-9]+).txt',
         'LTRB': False,  # LTRB:2points(left,top,right,bottom) or 4 points(x1,y1,x2,y2,x3,y3,x4,y4)
         'CRLF': False,  # Lines are delimited by Windows CRLF format
         'CONFIDENCES': False,  # Detections must include confidence value. AP will be calculated
@@ -329,24 +334,31 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
     return resDict;
 
 
-def eval_2015(res_folder):
-    params = {}
-    current_folder = os.path.join(os.path.dirname(__file__))
-    submitfile = os.path.join(current_folder, 'submit.zip')
-    #print(submitfile)
-    filenames = os.listdir(res_folder)
-    zip = zipfile.ZipFile(submitfile, "w", zipfile.ZIP_DEFLATED)
-    for filename in filenames:
-        filepath = os.path.join(res_folder, filename)
-        zip.write(filepath, filename)
-    zip.close()
-    gtfile = os.path.join(current_folder, 'gt.zip')
-    params['g'] = gtfile
-    params['s'] = submitfile
-    rrc_evaluation_funcs.main_evaluation(params, default_evaluation_params, validate_data, evaluate_method)
+def eval_2015(est_folder, gt_folder, eval_folder):
+    submit_fname = 'submit.zip'
+    gt_fname = 'gt.zip'
+    compress_files(est_folder, eval_folder, submit_fname)
+    compress_files(gt_folder, eval_folder, gt_fname)
 
+    params = {}
+    params['g'] = os.path.join(eval_folder, gt_fname)
+    params['s'] = os.path.join(eval_folder, submit_fname)
+    rrc_evaluation_funcs.main_evaluation(params, default_evaluation_params, validate_data, evaluate_method)
 
 def getresult(result_path):
     # rrc_evaluation_funcs.main_evaluation(None, default_evaluation_params, validate_data, evaluate_method)
     #eval_2015('../../test')
     eval_2015(result_path)
+
+def compress_files(src_dir, dst_dir, zip_fname='temp.zip'):
+    filenames = os.listdir(src_dir)
+    zip_fpath = os.path.join(dst_dir, zip_fname)
+    zip = zipfile.ZipFile(zip_fpath, "w", zipfile.ZIP_DEFLATED)
+    for filename in filenames:
+        fpath = os.path.join(src_dir, filename)
+        zip.write(fpath, filename)
+    zip.close()
+    if utils.file_exists(zip_fpath):
+        return True
+    else:
+        return False

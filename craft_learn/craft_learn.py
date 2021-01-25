@@ -32,32 +32,27 @@ def main_generate(ini, logger=None):
         # Load json
         ann_fname = ann_fnames[idx]
         _, ann_core_name, _ = utils.split_fname(ann_fname)
-        # if ann_core_name == img_core_name + img_ext:  # 시중교재
-        if ann_core_name == img_core_name:
+        if ann_core_name == img_core_name + img_ext:
             with open(ann_fname) as json_file:
                 json_data = json.load(json_file)
                 objects = json_data['objects']
                 # pprint.pprint(objects)
 
         bboxes = []
-        texts = []
         for obj in objects:
             class_name = obj['classTitle']
-            if class_name in ['problem_whole', 'graph_diagrams', 'graph']:
+            if class_name in ['problem_whole', 'graph_diagrams']:
                 continue
 
             [x1, y1], [x2, y2] = obj['points']['exterior']
             x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
             if x_max - x_min <= 0 or y_max - y_min <= 0:
                 continue
-            text = obj['description']
 
             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
             bboxes.append(rect4)
-            texts.append(text)
 
-        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts,
-                              dirname=ini['gt_path'], save_img_=True)
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'], save_img_=True)
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -180,7 +175,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'TRAIN_TEST' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
