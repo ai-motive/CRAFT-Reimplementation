@@ -82,6 +82,7 @@ def main(args, logger=None):
     net = CRAFT(pretrained=False)
     net.load_state_dict(copyStateDict(torch.load(args.pretrain_model_path)))
     net = net.cuda()
+    logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.pretrain_model_path))
 
     net = torch.nn.DataParallel(net, device_ids=[0]).cuda()
     cudnn.benchmark = True
@@ -94,6 +95,7 @@ def main(args, logger=None):
         num_workers=args.num_workers,
         drop_last=True,
         pin_memory=True)
+    logger.info(" [TRAIN] # Train img & gt loaded from : {}".format(train_dir))
 
     optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     criterion = Maploss()
@@ -103,7 +105,7 @@ def main(args, logger=None):
     loss_time = 0
     loss_value = 0
     compare_loss = 1
-    for epoch in range(1000):
+    for epoch in range(10000):
         train_time_st = time.time()
         loss_value = 0
         if epoch % 50 == 0 and epoch != 0:
