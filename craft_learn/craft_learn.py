@@ -39,20 +39,23 @@ def main_generate(ini, logger=None):
                 # pprint.pprint(objects)
 
         bboxes = []
+        texts = []
         for obj in objects:
             class_name = obj['classTitle']
             if class_name in ['problem_whole', 'graph_diagrams']:
                 continue
 
             [x1, y1], [x2, y2] = obj['points']['exterior']
+            text = obj['description']
             x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
             if x_max - x_min <= 0 or y_max - y_min <= 0:
                 continue
 
             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
             bboxes.append(rect4)
+            texts.append(text)
 
-        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'], save_img_=True)
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts, dirname=ini['gt_path'], save_img_=False)
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -99,10 +102,10 @@ def main_split(ini, logger=None):
     return True
 
 def main_train(ini, model_dir=None, logger=None):
-    train_args = ['--train_img_path', ini['train_img_path'],
-                  '--train_gt_path', ini['train_gt_path'],
+    train_args = ['--img_path', ini['img_path'],
+                  '--gt_path', ini['gt_path'],
                   '--cuda', ini['cuda'],
-                  '--pretrain_model_path', ini['pretrain_model_path'],
+                  '--model_path', ini['model_path'],
                   '--resume', ini['resume'],
                   '--batch_size', ini['batch_size'],
                   '--learning_rate', ini['learning_rate'],
@@ -112,7 +115,7 @@ def main_train(ini, model_dir=None, logger=None):
                   '--num_workers', ini['num_workers'],
                   '--model_root_path', ini['model_root_path']]
 
-    train.main(train.parse_arguments(train_args), logger=logger)
+    ## train.main(train.parse_arguments(train_args), logger=logger)
     if not model_dir:
         model_dir = max([os.path.join(ini['model_root_path'],d) for d in os.listdir(ini["model_root_path"])],
                         key=os.path.getmtime)
@@ -128,13 +131,13 @@ def main_test(ini, model_dir=None, logger=None):
                         key=os.path.getmtime)
     else:
         model_dir = os.path.join(ini["model_root_path"], model_dir)
-    model_name = os.path.join(model_dir, os.path.basename(model_dir))
+    model_path = os.path.join(model_dir, os.path.basename(model_dir) + '-craft' + '.pth')
 
-    test_args = ['--pretrain_model_path', ini['pretrain_model_path'],
+    test_args = ['--pretrain_model_path', model_path,
                  '--test_img_path', ini['test_img_path'],
                  '--test_gt_path', ini['test_gt_path']]
-
-    test.test(model_path=test_args.pretrain_model_path, )
+    ## train.main(train.parse_arguments(train_args), logger=logger)
+    test.test(model_path=model_path, img_dir=ini['test_img_path'], rst_dir="./result")
 
 
 def main(args):
@@ -175,7 +178,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'TEST' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
@@ -184,7 +187,7 @@ if __name__ == "__main__":
         if SELF_TEST_:
             sys.argv.extend(["--op_mode", OP_MODE])
             sys.argv.extend(["--ini_fname", INI_FNAME])
-            # sys.argv.extend(["--model_dir", "./pretrain/"])
+            # sys.argv.extend(["--model_dir", '200925'])
             sys.argv.extend(["--logging_"])
             sys.argv.extend(["--console_logging_"])
         else:

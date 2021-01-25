@@ -106,12 +106,12 @@ def random_crop(imgs, img_size, character_bboxes):
         crop_w = sample_bboxes[1, 0] if tw < sample_bboxes[1, 0] - j else tw
     else:
         ### train for IC15 dataset####
-        # i = random.randint(0, h - th)
-        # j = random.randint(0, w - tw)
+        i = random.randint(0, h - th)
+        j = random.randint(0, w - tw)
 
-        #### train for MLT dataset ###
-        i, j = 0, 0
-        crop_h, crop_w = h + 1, w + 1  # make the crop_h, crop_w > tw, th
+        # #### train for MLT dataset ###
+        # i, j = 0, 0
+        # crop_h, crop_w = h + 1, w + 1  # make the crop_h, crop_w > tw, th
 
     for idx in range(len(imgs)):
         # crop_h = sample_bboxes[1, 1] if th < sample_bboxes[1, 1] else th
@@ -261,7 +261,7 @@ class craft_base_dataset(data.Dataset):
                 bboxes[j] = ori[:, :2]
         except Exception as e:
             print(e, gt_path)
-
+            pass
 #         for j in range(len(bboxes)):
 #             ones = np.ones((4, 1))
 #             tmp = np.concatenate([bboxes[j], ones], axis=-1)
