@@ -77,7 +77,7 @@ def main(args, logger=None):
     net = CRAFT(pretrained=False)
     net.load_state_dict(copyStateDict(torch.load(args.model_path)))
     net = net.cuda()
-    logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.pretrain_model_path))
+    logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.model_path))
 
     net = torch.nn.DataParallel(net, device_ids=[0]).cuda()
     cudnn.benchmark = True
@@ -148,7 +148,7 @@ def main(args, logger=None):
             #                '/data/CRAFT-pytorch/real_weights/lower_loss.pth')
 
             # Epoch이 +50마다 저장
-            if epoch % 10 == 0 and epoch != 0:
+            if epoch % 50 == 0 and epoch != 0:
                 logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
                 rst_model_dir = os.path.join(args.model_root_path, 'model')
                 rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)

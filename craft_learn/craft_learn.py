@@ -99,10 +99,10 @@ def main_split(ini, logger=None):
     return True
 
 def main_train(ini, model_dir=None, logger=None):
-    train_args = ['--train_img_path', ini['train_img_path'],
-                  '--train_gt_path', ini['train_gt_path'],
+    train_args = ['--img_path', ini['train_img_path'],
+                  '--gt_path', ini['train_gt_path'],
                   '--cuda', ini['cuda'],
-                  '--pretrain_model_path', ini['pretrain_model_path'],
+                  '--model_path', ini['pretrain_model_path'],
                   '--resume', ini['resume'],
                   '--batch_size', ini['batch_size'],
                   '--learning_rate', ini['learning_rate'],
@@ -175,7 +175,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'TRAIN_TEST' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
