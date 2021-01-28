@@ -56,7 +56,6 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
         with open(res_file, 'w') as f:
             for i, box in enumerate(boxes):
                 poly = np.array(box).astype(np.int32).reshape((-1))
-                print(texts[i])
                 if texts is not None:
                     if texts[i] == '':
                         strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'

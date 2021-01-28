@@ -32,7 +32,8 @@ def main_generate(ini, logger=None):
         # Load json
         ann_fname = ann_fnames[idx]
         _, ann_core_name, _ = utils.split_fname(ann_fname)
-        if ann_core_name == img_core_name + img_ext:
+        # if ann_core_name == img_core_name + img_ext: # 뒤에 .json
+        if ann_core_name == img_core_name:
             with open(ann_fname) as json_file:
                 json_data = json.load(json_file)
                 objects = json_data['objects']
@@ -52,7 +53,7 @@ def main_generate(ini, logger=None):
             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
             bboxes.append(rect4)
 
-        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'], save_img_=True)
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'])
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -175,7 +176,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'TRAIN_TEST' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
