@@ -131,11 +131,13 @@ def main_test(ini, model_dir=None, logger=None):
         model_dir = os.path.join(ini["model_root_path"], model_dir)
     model_name = os.path.join(model_dir, os.path.basename(model_dir))
 
-    test_args = ['--pretrain_model_path', ini['pretrain_model_path'],
-                 '--test_img_path', ini['test_img_path'],
-                 '--test_gt_path', ini['test_gt_path']]
+    test_args = ['--model_path', ini['pretrain_model_path'],
+                 '--img_path', ini['test_img_path'],
+                 '--gt_path', ini['test_gt_path'],
+                 '--cuda', ini['cuda']
+                 ]
 
-    test.test(model_path=test_args.pretrain_model_path, )
+    test.main(test.parse_arguments(test_args), logger=logger)
 
 
 def main(args):
