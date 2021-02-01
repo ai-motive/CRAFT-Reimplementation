@@ -23,7 +23,7 @@ from torch.autograd import Variable
 from craft import CRAFT
 from collections import OrderedDict
 import general_utils as utils
-from eval.script import eval_2015
+from eval.script import eval_dataset
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
@@ -119,9 +119,9 @@ def main(args, logger=None):
     utils.folder_exists(eval_folder, create_=True)
 
     for k, image_path in enumerate(image_list):
-        print("Test image {:d}/{:d}: {:s}".format(k+1, len(image_list), image_path), end='\r')
+        print("Test image {:d}/{:d}: {:s}".format(k+1, len(image_list), image_path))
         image = imgproc.loadImage(image_path)
-
+        # image = cv2.resize(image, dsize=(768, 768), interpolation=cv2.INTER_CUBIC) ##
         bboxes, polys, score_text = test_net(net, image,
                                              text_threshold=args.text_threshold, link_threshold=args.link_threshold,
                                              low_text=args.low_text, cuda=args.cuda,
@@ -133,15 +133,16 @@ def main(args, logger=None):
         if not(utils.file_exists(mask_file)):
             cv2.imwrite(mask_file, score_text)
 
-        file_utils.saveResult15(image_path, polys, dirname=est_folder, mode='test')
+        file_utils.saveResult15(image_path, bboxes, dirname=est_folder, mode='test')
 
-    eval_2015(est_folder=est_folder, gt_folder=args.gt_path, eval_folder=eval_folder)
+    eval_dataset(est_folder=est_folder, gt_folder=args.gt_path, eval_folder=eval_folder, dataset_type=args.dataset_type)
     print("elapsed time : {}s".format(time.time() - t))
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(description='CRAFT Text Detection')
 
     parser.add_argument('--model_path', default='pretrain/craft_mlt_25k.pth', type=str, help='pretrained model')
+    parser.add_argument("--dataset_type", required=True, choices=['mathflat', 'ic15'], help="operation mode")
     parser.add_argument("--img_path", required=True, type=str, help="Test image file path")
     parser.add_argument("--gt_path", required=True, type=str, help="Test ground truth file path")
     parser.add_argument("--rst_path", default=".", help="Result folder")

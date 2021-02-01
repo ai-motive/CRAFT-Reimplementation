@@ -22,11 +22,26 @@ def default_evaluation_params():
     """
     default_evaluation_params: Default parameters to use for the validation and evaluation.
     """
+
     return {
         'IOU_CONSTRAINT': 0.5,
         'AREA_PRECISION_CONSTRAINT': 0.5,
         'GT_SAMPLE_NAME_2_ID': 'gt_.*_([0-9]+).txt',
         'DET_SAMPLE_NAME_2_ID': 'est_.*_([0-9]+).txt',
+        # 'GT_SAMPLE_NAME_2_ID': 'gt_img_([0-9]+).txt',
+        # 'DET_SAMPLE_NAME_2_ID': 'res_img_([0-9]+).txt',
+        'LTRB': False,  # LTRB:2points(left,top,right,bottom) or 4 points(x1,y1,x2,y2,x3,y3,x4,y4)
+        'CRLF': False,  # Lines are delimited by Windows CRLF format
+        'CONFIDENCES': False,  # Detections must include confidence value. AP will be calculated
+        'PER_SAMPLE_RESULTS': True  # Generate per sample results and produce data for visualization
+    }
+
+def mathflat_evaluation_params():
+    return {
+        'IOU_CONSTRAINT': 0.5,
+        'AREA_PRECISION_CONSTRAINT': 0.5,
+        'GT_SAMPLE_NAME_2_ID': 'gt_\[rst_([0-9]+)\] .*.txt',
+        'DET_SAMPLE_NAME_2_ID': 'est_\[rst_([0-9]+)\] .*.txt',
         # 'GT_SAMPLE_NAME_2_ID': 'gt_img_([0-9]+).txt',
         # 'DET_SAMPLE_NAME_2_ID': 'res_img_([0-9]+).txt',
         'LTRB': False,  # LTRB:2points(left,top,right,bottom) or 4 points(x1,y1,x2,y2,x3,y3,x4,y4)
@@ -334,7 +349,7 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
     return resDict;
 
 
-def eval_2015(est_folder, gt_folder, eval_folder):
+def eval_dataset(est_folder, gt_folder, eval_folder, dataset_type='ic15'):
     submit_fname = 'submit.zip'
     gt_fname = 'gt.zip'
     compress_files(est_folder, eval_folder, submit_fname)
@@ -343,12 +358,18 @@ def eval_2015(est_folder, gt_folder, eval_folder):
     params = {}
     params['g'] = os.path.join(eval_folder, gt_fname)
     params['s'] = os.path.join(eval_folder, submit_fname)
-    rrc_evaluation_funcs.main_evaluation(params, default_evaluation_params, validate_data, evaluate_method)
+
+    if dataset_type == 'ic15':
+        evaluation_params = default_evaluation_params
+    elif dataset_type == 'mathflat':
+        evaluation_params = mathflat_evaluation_params
+
+    rrc_evaluation_funcs.main_evaluation(params, evaluation_params, validate_data, evaluate_method) # default_eval_params = default_evaluation_params(mode='mathflat')
 
 def getresult(result_path):
     # rrc_evaluation_funcs.main_evaluation(None, default_evaluation_params, validate_data, evaluate_method)
     #eval_2015('../../test')
-    eval_2015(result_path)
+    eval_dataset(result_path)
 
 def compress_files(src_dir, dst_dir, zip_fname='temp.zip'):
     filenames = os.listdir(src_dir)

@@ -40,20 +40,23 @@ def main_generate(ini, logger=None):
                 # pprint.pprint(objects)
 
         bboxes = []
+        texts = []
         for obj in objects:
             class_name = obj['classTitle']
-            if class_name in ['problem_whole', 'graph_diagrams']:
+            if class_name != 'textline':
                 continue
 
             [x1, y1], [x2, y2] = obj['points']['exterior']
+            text = obj['description']
             x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
             if x_max - x_min <= 0 or y_max - y_min <= 0:
                 continue
 
             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
             bboxes.append(rect4)
+            texts.append(text)
 
-        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'])
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts, dirname=ini['gt_path'])
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -132,9 +135,11 @@ def main_test(ini, model_dir=None, logger=None):
     model_name = os.path.join(model_dir, os.path.basename(model_dir))
 
     test_args = ['--model_path', ini['pretrain_model_path'],
+                 '--dataset_type', ini['dataset_type'],
                  '--img_path', ini['test_img_path'],
                  '--gt_path', ini['test_gt_path'],
-                 '--cuda', ini['cuda']
+                 '--cuda', ini['cuda'],
+                 '--rst_path', ini['rst_path']
                  ]
 
     test.main(test.parse_arguments(test_args), logger=logger)
@@ -178,7 +183,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'TEST' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
