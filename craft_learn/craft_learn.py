@@ -32,7 +32,7 @@ def main_generate(ini, logger=None):
         # Load json
         ann_fname = ann_fnames[idx]
         _, ann_core_name, _ = utils.split_fname(ann_fname)
-        # if ann_core_name == img_core_name + img_ext: # 뒤에 .json
+        ann_core_name = ann_core_name.replace('.jpg', '')
         if ann_core_name == img_core_name:
             with open(ann_fname) as json_file:
                 json_data = json.load(json_file)
@@ -77,7 +77,7 @@ def main_split(ini, logger=None):
             sys.exit()
         shutil.rmtree(ini['test_path'])
     train_img_path, test_img_path = os.path.join(ini['train_path'], 'img/'), os.path.join(ini['test_path'], 'img/')
-    train_gt_path, test_gt_path = os.path.join(ini['train_path'], 'gt/'), os.path.join(ini['test_path'], 'gt/')
+    train_gt_path, test_gt_path = os.path.join(ini['train_path'], 'craft_gt/'), os.path.join(ini['test_path'], 'craft_gt/')
     shutil.copytree(ini['img_path'], train_img_path)
     shutil.copytree(ini['img_path'], test_img_path)
     shutil.copytree(ini['gt_path'], train_gt_path)
@@ -185,7 +185,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'TRAIN_TEST' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'TRAIN' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
