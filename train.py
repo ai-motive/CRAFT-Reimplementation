@@ -79,7 +79,11 @@ def main(args, logger=None):
     net = net.cuda()
     logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.model_path))
 
-    net = torch.nn.DataParallel(net, device_ids=[0]).cuda()
+    cuda_ids = [int(id) for id in args.cuda_ids]
+    if len(cuda_ids) > 1:
+        net = torch.nn.DataParallel(net, device_ids=cuda_ids).cuda()
+    else:
+        net = torch.nn.DataParallel(net, device_ids=cuda_ids)
     cudnn.benchmark = True
     net.train()
     real_data = ICDAR2015(net, train_dir, img_dir=img_dir_name, gt_dir=gt_dir_name, target_size=768)
@@ -100,10 +104,10 @@ def main(args, logger=None):
     loss_time = 0
     loss_value = 0
     compare_loss = 1
-    for epoch in range(10000):
+    for epoch in range(1000000):
         train_time_st = time.time()
         loss_value = 0
-        if epoch % 50 == 0 and epoch != 0:
+        if epoch % 50 == 0 and epoch != 0: # default : 50
             step_index += 1
             adjust_learning_rate(optimizer, args.gamma, step_index, args.learning_rate)
 
@@ -148,7 +152,7 @@ def main(args, logger=None):
             #                '/data/CRAFT-pytorch/real_weights/lower_loss.pth')
 
             # Epoch이 +50마다 저장
-            if epoch % 50 == 0 and epoch != 0:
+            if epoch % 50 == 0 and epoch != 0: # default : 50
                 logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
                 rst_model_dir = os.path.join(args.model_root_path, 'model')
                 rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)
@@ -171,6 +175,7 @@ def parse_arguments(argv):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--cuda', default=True, type=str2bool, help='Use CUDA to train model')
+    parser.add_argument('--cuda_ids', default=True, type=list, help='Allocate GPU to train model')
     parser.add_argument("--model_path", required=True, type=str, help="pretrain model path")
     parser.add_argument("--img_path", required=True, type=str, help="Train image file path")
     parser.add_argument("--gt_path", required=True, type=str, help="Train ground truth file path")
@@ -203,7 +208,8 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         if SELF_TEST_:
             sys.argv.extend(["--op_mode", OP_MODE])
-            sys.argv.extend(["--cuda", 'True'])
+            # sys.argv.extend(["--cuda", 'True'])
+            # sys.argv.extend(["--cuda_ids", '0'])
             sys.argv.extend(["--model_path", MODEL_PATH])
             sys.argv.extend(["--img_path", IMG_PATH])
             sys.argv.extend(["--gt_path", GT_PATH])

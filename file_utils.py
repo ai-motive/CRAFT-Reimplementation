@@ -60,7 +60,7 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
                     if texts[i] == '':
                         strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
                     else:
-                        strResult = ','.join([str(p) for p in poly]) + ',' + texts[i] + '\r\n'
+                        strResult = ','.join([str(p) for p in poly]) + ',' + texts[i].replace(',', '.') + '\r\n'
                 else:
                     strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
                 # poly = np.array(box).astype(np.int32)
@@ -116,7 +116,7 @@ def saveResult15(img_file, boxes, dirname='./result/', verticals=None, texts=Non
                         if texts[i] == '':
                             strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
                         else:
-                            strResult = ','.join([str(p) for p in poly]) + ',' + texts[i] + '\r\n'
+                            strResult = ','.join([str(p) for p in poly]) + ',' + texts[i].replace(',', '.') + '\r\n'
                     else:
                         strResult = ','.join([str(p) for p in poly]) + ',' + '###' + '\r\n'
                 else:

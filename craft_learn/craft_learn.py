@@ -32,7 +32,7 @@ def main_generate(ini, logger=None):
         # Load json
         ann_fname = ann_fnames[idx]
         _, ann_core_name, _ = utils.split_fname(ann_fname)
-        # if ann_core_name == img_core_name + img_ext: # 뒤에 .json
+        ann_core_name = ann_core_name.replace('.jpg', '')
         if ann_core_name == img_core_name:
             with open(ann_fname) as json_file:
                 json_data = json.load(json_file)
@@ -40,20 +40,23 @@ def main_generate(ini, logger=None):
                 # pprint.pprint(objects)
 
         bboxes = []
+        texts = []
         for obj in objects:
             class_name = obj['classTitle']
-            if class_name in ['problem_whole', 'graph_diagrams']:
+            if class_name != 'textline':
                 continue
 
             [x1, y1], [x2, y2] = obj['points']['exterior']
+            text = obj['description']
             x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
             if x_max - x_min <= 0 or y_max - y_min <= 0:
                 continue
 
             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
             bboxes.append(rect4)
+            texts.append(text)
 
-        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, dirname=ini['gt_path'])
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts, dirname=ini['gt_path'])
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -74,7 +77,7 @@ def main_split(ini, logger=None):
             sys.exit()
         shutil.rmtree(ini['test_path'])
     train_img_path, test_img_path = os.path.join(ini['train_path'], 'img/'), os.path.join(ini['test_path'], 'img/')
-    train_gt_path, test_gt_path = os.path.join(ini['train_path'], 'gt/'), os.path.join(ini['test_path'], 'gt/')
+    train_gt_path, test_gt_path = os.path.join(ini['train_path'], 'craft_gt/'), os.path.join(ini['test_path'], 'craft_gt/')
     shutil.copytree(ini['img_path'], train_img_path)
     shutil.copytree(ini['img_path'], test_img_path)
     shutil.copytree(ini['gt_path'], train_gt_path)
@@ -100,9 +103,11 @@ def main_split(ini, logger=None):
     return True
 
 def main_train(ini, model_dir=None, logger=None):
+    cuda_ids = ini['cuda_ids'].split(',')
     train_args = ['--img_path', ini['train_img_path'],
                   '--gt_path', ini['train_gt_path'],
                   '--cuda', ini['cuda'],
+                  '--cuda_ids', cuda_ids,
                   '--model_path', ini['pretrain_model_path'],
                   '--resume', ini['resume'],
                   '--batch_size', ini['batch_size'],
@@ -132,9 +137,11 @@ def main_test(ini, model_dir=None, logger=None):
     model_name = os.path.join(model_dir, os.path.basename(model_dir))
 
     test_args = ['--model_path', ini['pretrain_model_path'],
+                 '--dataset_type', ini['dataset_type'],
                  '--img_path', ini['test_img_path'],
                  '--gt_path', ini['test_gt_path'],
-                 '--cuda', ini['cuda']
+                 '--cuda', ini['cuda'],
+                 '--rst_path', ini['rst_path']
                  ]
 
     test.main(test.parse_arguments(test_args), logger=logger)
@@ -178,7 +185,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'SPLIT' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'TRAIN' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
