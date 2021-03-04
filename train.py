@@ -84,13 +84,13 @@ def main(args, logger=None):
     logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.model_path))
 
     cuda_ids = [int(id) for id in args.cuda_ids]
-    if device.type == 'cpu':
-        net = torch.nn.DataParallel(net)
-    else:
+    if device.type == 'cuda':
         if len(cuda_ids) > 1:
             net = torch.nn.DataParallel(net, device_ids=cuda_ids).cuda()
         else:
             net = torch.nn.DataParallel(net, device_ids=cuda_ids)
+    else:
+        net = torch.nn.DataParallel(net).to(device)
 
     cudnn.benchmark = True
     net.train()
