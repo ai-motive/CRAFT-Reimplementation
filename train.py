@@ -74,16 +74,23 @@ def main(args, logger=None):
     # Load model info.
     model_dir, model_name, model_ext = utils.split_fname(args.model_path)
 
+    device = torch.device('cuda' if (torch.cuda.is_available() and args.cuda) else 'cpu')
     net = CRAFT(pretrained=False)
     net.load_state_dict(copyStateDict(torch.load(args.model_path)))
-    net = net.cuda()
+    if device.type == 'cuda':
+        net = net.cuda()
+    else:
+        net = net()
     logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.model_path))
 
     cuda_ids = [int(id) for id in args.cuda_ids]
-    if len(cuda_ids) > 1:
-        net = torch.nn.DataParallel(net, device_ids=cuda_ids).cuda()
+    if device.type == 'cpu':
+        net = torch.nn.DataParallel(net)
     else:
-        net = torch.nn.DataParallel(net, device_ids=cuda_ids)
+        if len(cuda_ids) > 1:
+            net = torch.nn.DataParallel(net, device_ids=cuda_ids).cuda()
+        else:
+            net = torch.nn.DataParallel(net, device_ids=cuda_ids)
 
     cudnn.benchmark = True
     net.train()
