@@ -80,14 +80,11 @@ def main(args, logger=None):
     logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.model_path))
 
     cuda_ids = [int(id) for id in args.cuda_ids]
-<<<<<<< HEAD
     if len(cuda_ids) > 1:
         net = torch.nn.DataParallel(net, device_ids=cuda_ids).cuda()
     else:
         net = torch.nn.DataParallel(net, device_ids=cuda_ids)
-=======
-    net = torch.nn.DataParallel(net, device_ids=cuda_ids).cuda()
->>>>>>> e450934c6d5e768a7d90acd1cae2c8495a863704
+
     cudnn.benchmark = True
     net.train()
     real_data = ICDAR2015(net, train_dir, img_dir=img_dir_name, gt_dir=gt_dir_name, target_size=768)
