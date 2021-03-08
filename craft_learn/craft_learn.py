@@ -10,6 +10,8 @@ import general_utils as utils
 import file_utils
 import coordinates as coord
 import train, test
+import subprocess
+from sklearn.model_selection import train_test_split
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
@@ -70,36 +72,103 @@ def main_split(ini, logger=None):
         if ans.lower() != 'y':
             sys.exit()
         shutil.rmtree(ini['train_path'])
+
     if utils.folder_exists(ini['test_path'], create_=False):
         print(" @ Warning: test dataset path, {}, already exists".format(ini["test_path"]))
         ans = input(" % Proceed (y/n) ? ")
         if ans.lower() != 'y':
             sys.exit()
         shutil.rmtree(ini['test_path'])
+
+    train_ratio = float(ini['train_ratio'])
+    test_ratio = round(1.0-train_ratio, 2)
+
+    gt_list = sorted(utils.get_filenames(ini['gt_path'], extensions=utils.TEXT_EXTENSIONS))
+    train_gt_list, test_gt_list = train_test_split(gt_list, train_size=train_ratio, random_state=2000)
+    train_img_list, test_img_list = [gt_path.replace('craft_gt', 'img').replace('.txt', '.jpg').replace('gt_', '') for gt_path in train_gt_list], \
+                                    [gt_path.replace('craft_gt', 'img').replace('.txt', '.jpg').replace('gt_', '') for gt_path in test_gt_list]
+
     train_img_path, test_img_path = os.path.join(ini['train_path'], 'img/'), os.path.join(ini['test_path'], 'img/')
     train_gt_path, test_gt_path = os.path.join(ini['train_path'], 'craft_gt/'), os.path.join(ini['test_path'], 'craft_gt/')
-    shutil.copytree(ini['img_path'], train_img_path)
-    shutil.copytree(ini['img_path'], test_img_path)
-    shutil.copytree(ini['gt_path'], train_gt_path)
-    shutil.copytree(ini['gt_path'], test_gt_path)
+    utils.folder_exists(train_img_path, create_=True), utils.folder_exists(test_img_path, create_=True)
+    utils.folder_exists(train_gt_path, create_=True), utils.folder_exists(test_gt_path, create_=True)
 
-    train_img_fnames = sorted(utils.get_filenames(train_img_path, extensions=utils.IMG_EXTENSIONS))
-    test_img_fnames = sorted(utils.get_filenames(test_img_path, extensions=utils.IMG_EXTENSIONS))
-    train_gt_fnames = sorted(utils.get_filenames(train_gt_path, extensions=utils.TEXT_EXTENSIONS))
-    test_gt_fnames = sorted(utils.get_filenames(test_gt_path, extensions=utils.TEXT_EXTENSIONS))
-    logger.info(" [GENERATE] # Total file number to be processed: {:d}.".format(len(train_img_fnames)))
-    for idx in range(len(train_img_fnames)):
-        len_train = round(len(train_img_fnames) * int(ini['percent_ratio'])/100)
-        if idx <= len_train:
-            os.remove(test_img_fnames[idx])
-            os.remove(test_gt_fnames[idx])
-        else:
-            os.remove(train_img_fnames[idx])
-            os.remove(train_gt_fnames[idx])
-    train_num = len(utils.get_filenames(train_img_path, extensions=utils.IMG_EXTENSIONS))
-    test_num = len(utils.get_filenames(test_img_path, extensions=utils.IMG_EXTENSIONS))
+    # Apply symbolic link for gt & img path
+    if len(gt_list) != 0:
+        for op_mode in ['train', 'test']:
+            if op_mode is 'train':
+                gt_list = train_gt_list
+                img_list = train_img_list
+
+                gt_link_path = train_gt_path
+                img_link_path = train_img_path
+            elif op_mode is 'test':
+                gt_list = test_gt_list
+                img_list = test_img_list
+
+                gt_link_path = test_gt_path
+                img_link_path = test_img_path
+
+            # link gt_path
+            for gt_path in gt_list:
+                gt_sym_cmd = 'ln -s "{}" "{}"'.format(gt_path, gt_link_path)  # to all files
+                subprocess.call(gt_sym_cmd, shell=True)
+            logger.info(" # Link gt files {} -> {}.".format(gt_list[0], gt_link_path))
+
+            # link img_path
+            for img_path in img_list:
+                img_sym_cmd = 'ln -s "{}" "{}"'.format(img_path, img_link_path)  # to all files
+                subprocess.call(img_sym_cmd, shell=True)
+            logger.info(" # Link img files {} -> {}.".format(img_list[0], img_link_path))
+
     print(" # (train, test) = ({:d}, {:d}) -> {:d} % ".
-          format(train_num, test_num, int(float(train_num) / float(train_num + test_num) * 100)))
+          format(len(train_gt_list), len(test_gt_list), int(float(len(train_gt_list))/float(len(train_gt_list)+len(test_gt_list))*100)))
+    return True
+
+
+def main_merge(ini, logger=None):
+    utils.folder_exists(ini['total_dataset_path'], create_=True)
+
+    datasets = [dataset for dataset in os.listdir(ini['dataset_path']) if dataset != 'total']
+    sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
+
+    if len(sort_datasets) != 0:
+        for dir_name in sort_datasets:
+            src_train_path, src_test_path = os.path.join(ini['dataset_path'], dir_name, 'train'), os.path.join(ini['dataset_path'], dir_name, 'test')
+            src_train_img_path, src_train_gt_path = os.path.join(src_train_path, 'img/'), os.path.join(src_train_path, 'craft_gt/')
+            src_test_img_path, src_test_gt_path = os.path.join(src_test_path, 'img/'), os.path.join(src_test_path, 'craft_gt/')
+
+            dst_train_path, dst_test_path = os.path.join(ini['total_dataset_path'], 'train'), os.path.join(ini['total_dataset_path'], 'test')
+            dst_train_img_path, dst_train_gt_path = os.path.join(dst_train_path, 'img/'), os.path.join(dst_train_path, 'craft_gt/')
+            dst_test_img_path, dst_test_gt_path = os.path.join(dst_test_path, 'img/'), os.path.join(dst_test_path, 'craft_gt/')
+
+            if utils.folder_exists(dst_train_img_path) and utils.folder_exists(dst_train_gt_path) and \
+                    utils.folder_exists(dst_test_img_path) and utils.folder_exists(dst_test_gt_path):
+                logger.info(" # Already {} is exist".format(ini['total_dataset_path']))
+            else:
+                utils.folder_exists(dst_train_img_path, create_=True), utils.folder_exists(dst_train_gt_path, create_=True)
+                utils.folder_exists(dst_test_img_path, create_=True), utils.folder_exists(dst_test_gt_path, create_=True)
+
+            # Apply symbolic link for gt & img path
+            for op_mode in ['train', 'test']:
+                if op_mode is 'train':
+                    src_img_path, src_gt_path = src_train_img_path, src_train_gt_path
+                    dst_img_path, dst_gt_path = dst_train_img_path, dst_train_gt_path
+                elif op_mode is 'test':
+                    src_img_path, src_gt_path = src_test_img_path, src_test_gt_path
+                    dst_img_path, dst_gt_path = dst_test_img_path, dst_test_gt_path
+
+                # link img_path
+                img_sym_cmd = 'ln -sf "{}"* "{}"'.format(src_img_path, dst_img_path)  # to all files
+                subprocess.call(img_sym_cmd, shell=True)
+                logger.info(" # Link img files {} -> {}.".format(src_img_path, dst_img_path))
+
+                # link gt_path
+                gt_sym_cmd = 'ln -sf "{}"* "{}"'.format(src_gt_path, dst_gt_path)  # to all files
+                subprocess.call(gt_sym_cmd, shell=True)
+                logger.info(" # Link gt files {} -> {}.".format(src_gt_path, dst_gt_path))
+
+    logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
 
 def main_train(ini, model_dir=None, logger=None):
@@ -156,6 +225,8 @@ def main(args):
         main_generate(ini['GENERATE'], logger=logger)
     elif args.op_mode == 'SPLIT':
         main_split(ini['SPLIT'], logger=logger)
+    elif args.op_mode == 'MERGE':
+        main_merge(ini['MERGE'], logger=logger)
     elif args.op_mode == 'TRAIN':
         main_train(ini['TRAIN'], model_dir=args.model_dir, logger=logger)
     elif args.op_mode == 'TEST':
@@ -172,7 +243,7 @@ def main(args):
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--op_mode", required=True, choices=['GENERATE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST'], help="operation mode")
+    parser.add_argument("--op_mode", required=True, choices=['GENERATE', 'MERGE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST'], help="operation mode")
     parser.add_argument("--ini_fname", required=True, help="System code ini filename")
     parser.add_argument("--model_dir", default="", help="Model directory")
 
@@ -185,7 +256,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'TRAIN' # GENERATE / SPLIT / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'MERGE' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
