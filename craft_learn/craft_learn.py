@@ -111,13 +111,13 @@ def main_split(ini, logger=None):
 
             # link gt_path
             for gt_path in gt_list:
-                gt_sym_cmd = 'ln -s "{}" "{}"'.format(gt_path, gt_link_path)  # to all files
+                gt_sym_cmd = 'ln "{}" "{}"'.format(gt_path, gt_link_path)  # to all files
                 subprocess.call(gt_sym_cmd, shell=True)
             logger.info(" # Link gt files {} -> {}.".format(gt_list[0], gt_link_path))
 
             # link img_path
             for img_path in img_list:
-                img_sym_cmd = 'ln -s "{}" "{}"'.format(img_path, img_link_path)  # to all files
+                img_sym_cmd = 'ln "{}" "{}"'.format(img_path, img_link_path)  # to all files
                 subprocess.call(img_sym_cmd, shell=True)
             logger.info(" # Link img files {} -> {}.".format(img_list[0], img_link_path))
 
@@ -159,12 +159,12 @@ def main_merge(ini, logger=None):
                     dst_img_path, dst_gt_path = dst_test_img_path, dst_test_gt_path
 
                 # link img_path
-                img_sym_cmd = 'ln -sf "{}"* "{}"'.format(src_img_path, dst_img_path)  # to all files
+                img_sym_cmd = 'ln "{}"* "{}"'.format(src_img_path, dst_img_path)  # to all files
                 subprocess.call(img_sym_cmd, shell=True)
                 logger.info(" # Link img files {} -> {}.".format(src_img_path, dst_img_path))
 
                 # link gt_path
-                gt_sym_cmd = 'ln -sf "{}"* "{}"'.format(src_gt_path, dst_gt_path)  # to all files
+                gt_sym_cmd = 'ln "{}"* "{}"'.format(src_gt_path, dst_gt_path)  # to all files
                 subprocess.call(gt_sym_cmd, shell=True)
                 logger.info(" # Link gt files {} -> {}.".format(src_gt_path, dst_gt_path))
 
