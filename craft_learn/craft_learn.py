@@ -256,7 +256,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'MERGE' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'TRAIN' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST
 INI_FNAME = _this_basename_ + ".ini"
 
 
