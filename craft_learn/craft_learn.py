@@ -243,7 +243,7 @@ def main(args):
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--op_mode", required=True, choices=['GENERATE', 'MERGE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST'], help="operation mode")
+    parser.add_argument("--op_mode", required=True, choices=['GENERATE', 'MERGE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'], help="operation mode")
     parser.add_argument("--ini_fname", required=True, help="System code ini filename")
     parser.add_argument("--model_dir", default="", help="Model directory")
 
@@ -256,7 +256,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-OP_MODE = 'TRAIN' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST
+OP_MODE = 'SPLIT_TEXTLINE' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 INI_FNAME = _this_basename_ + ".ini"
 
 
