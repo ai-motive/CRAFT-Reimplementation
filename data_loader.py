@@ -238,7 +238,7 @@ class craft_base_dataset(data.Dataset):
 
         else:
             bboxes = pursedo_bboxes
-        if False:
+        if viz:
             _tmp_bboxes = np.int32(bboxes.copy())
             _tmp_bboxes[:, :, 0] = np.clip(_tmp_bboxes[:, :, 0], 0, input.shape[1])
             _tmp_bboxes[:, :, 1] = np.clip(_tmp_bboxes[:, :, 1], 0, input.shape[0])
@@ -249,8 +249,9 @@ class craft_base_dataset(data.Dataset):
             target = self.gaussianTransformer.generate_region(region_scores_color.shape, [_tmp_bboxes])
             target_color = cv2.applyColorMap(target, cv2.COLORMAP_JET)
             viz_image = np.hstack([input[:, :, ::-1], region_scores_color, target_color])
-            cv2.imshow("crop_image", viz_image)
-            cv2.waitKey()
+            # cv2.imshow("crop_image", viz_image)
+            # cv2.waitKey()
+            cv2.imwrite('../result/' + self.images_path[self.index], viz_image) ##
         bboxes /= scale
         try:
             for j in range(len(bboxes)):
@@ -260,7 +261,7 @@ class craft_base_dataset(data.Dataset):
                 ori = np.matmul(I, tmp.transpose(1, 0)).transpose(1, 0)
                 bboxes[j] = ori[:, :2]
         except Exception as e:
-            print(e, gt_path)
+            print(e)
             pass
 #         for j in range(len(bboxes)):
 #             ones = np.ones((4, 1))
@@ -561,6 +562,7 @@ class ICDAR2015(craft_base_dataset):
         :param index:索引
         :return:bboxes 字符的框，
         '''
+        self.index = index
         imagename = self.images_path[index]
         gt_path = os.path.join(self.gt_folder, "gt_%s.txt" % os.path.splitext(imagename)[0])
         word_bboxes, words = self.load_gt(gt_path)

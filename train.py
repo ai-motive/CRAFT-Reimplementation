@@ -12,11 +12,34 @@ from mseloss import Maploss
 from collections import OrderedDict
 from craft import CRAFT
 from torch.autograd import Variable
+from datetime import datetime
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
+
+class Averager(object):
+    """Compute average for torch.Tensor, used for loss average."""
+
+    def __init__(self):
+        self.reset()
+
+    def add(self, v):
+        count = v.data.numel()
+        v = v.data.sum()
+        self.n_count += count
+        self.sum += v
+
+    def reset(self):
+        self.n_count = 0
+        self.sum = 0
+
+    def val(self):
+        res = 0
+        if self.n_count != 0:
+            res = self.sum / float(self.n_count)
+        return res
 
 def init_ini(ini):
     dict = {}
@@ -73,10 +96,14 @@ def main(args, logger=None):
 
     # Load model info.
     model_dir, model_name, model_ext = utils.split_fname(args.model_path)
+    model_date = datetime.today().strftime("%y%m%d")
+    rst_model_dir = os.path.join(args.model_root_path, model_date)
+    utils.folder_exists(rst_model_dir, create_=True)
 
     device = torch.device('cuda' if (torch.cuda.is_available() and args.cuda) else 'cpu')
     net = CRAFT(pretrained=False)
-    net.load_state_dict(copyStateDict(torch.load(args.model_path)))
+    if args.model_path:
+        net.load_state_dict(copyStateDict(torch.load(args.model_path, map_location=device)))
     if device.type == 'cuda':
         net = net.cuda()
     else:
@@ -94,7 +121,7 @@ def main(args, logger=None):
 
     cudnn.benchmark = True
     net.train()
-    real_data = ICDAR2015(net, train_dir, img_dir=img_dir_name, gt_dir=gt_dir_name, target_size=768)
+    real_data = ICDAR2015(net, train_dir, img_dir=img_dir_name, gt_dir=gt_dir_name, target_size=768, viz=False)
     real_data_loader = torch.utils.data.DataLoader(
         real_data,
         batch_size=args.batch_size,
@@ -107,14 +134,25 @@ def main(args, logger=None):
     optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     criterion = Maploss()
     #criterion = torch.nn.MSELoss(reduce=True, size_average=True)
+    # loss averager
+    loss_avg = Averager()
 
     step_index = 0
     loss_time = 0
     loss_value = 0
     compare_loss = 1
     for epoch in range(1000000):
+        # Save model path
+        if args.model_path:
+            rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)
+            rst_json_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + '.json')
+        else:
+            rst_model_path = os.path.join(rst_model_dir, model_date + '-craft_mathflat_{}_'.format(args.dataset_type.lower()) + repr(epoch) + '.pth')
+            rst_json_path = os.path.join(rst_model_dir, model_name + '-craft_mathflat_{}_'.format(args.dataset_type.lower()) + repr(epoch) + '.json')
+
         train_time_st = time.time()
         loss_value = 0
+        loss_avg.reset()
         if epoch % 50 == 0 and epoch != 0: # default : 50
             step_index += 1
             adjust_learning_rate(optimizer, args.gamma, step_index, args.learning_rate)
@@ -147,34 +185,36 @@ def main(args, logger=None):
             loss.backward()
             optimizer.step()
             loss_value += loss.item()
+            loss_avg.add(loss)
             if index % 2 == 0 and index > 0:
                 et = time.time()
-                logger.info(" [TRAIN] # epoch {}:({}/{}) batch || train time for 2 batch : {} || training loss : {}".format(epoch, index, len(real_data_loader), et-st, loss_value/2))
+                logger.info(" [TRAIN] # epoch {}:({}/{}) batch || train time : {:.4f} || training loss : {:.4f}".format(epoch, index*2, len(real_data_loader)*2, et-st, loss_value/2))
                 loss_time = 0
                 loss_value = 0
                 st = time.time()
-            # if loss < compare_loss:
-            #     print('save the lower loss iter, loss:',loss)
-            #     compare_loss = loss
-            #     torch.save(net.module.state_dict(),
-            #                '/data/CRAFT-pytorch/real_weights/lower_loss.pth')
 
-            # Epoch이 +50마다 저장
-            if epoch % 50 == 0 and epoch != 0: # default : 50
-                logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
-                rst_model_dir = os.path.join(args.model_root_path, 'model')
-                rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)
-                rst_json_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + '.json')
-                utils.folder_exists(rst_model_dir, create_=True)
+        # Init. train info.
+        rst_dict = {}
+        rst_dict['result_model_path'] = rst_model_path
+        rst_dict['epoch'] = epoch
+        rst_dict['data_size'] = len(real_data_loader)
+        rst_dict['last_loss'] = float(loss)
+        rst_dict['avg_loss'] = float(loss_avg.val())
 
-                rst_dict = {}
-                rst_dict['result_model_path'] = rst_model_path
-                rst_dict['epoch'] = epoch
-                rst_dict['data_size'] = len(real_data_loader)
-                rst_dict['last_loss'] = float(loss)
+        if loss_avg.val() < compare_loss:
+            print('Save the lower average loss iter, loss:', loss_avg)
+            compare_loss = loss_avg.val()
+            torch.save(net.module.state_dict(),
+                       os.path.join(rst_model_dir, 'lower_loss.pth'))
+            utils.save_dict_to_json_file(rst_dict, os.path.join(rst_model_dir, 'lower_loss.json'))
 
-                torch.save(net.module.state_dict(), rst_model_path)
-                utils.save_dict_to_json_file(rst_dict, rst_json_path)
+        # Epoch이 +50마다 저장
+        if epoch % 50 == 0 and epoch != 0: # default : 50
+            logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
+            torch.save(net.module.state_dict(), rst_model_path)
+            utils.save_dict_to_json_file(rst_dict, rst_json_path)
+
+        logger.info(" [TRAIN] # epoch {}:({}/{}) : training average loss : {:.3f}".format(epoch, index, len(real_data_loader), float(loss_avg.val())))
 
     logger.info(" [TRAIN] # Total train data processed !!!")
     return True
@@ -184,6 +224,7 @@ def parse_arguments(argv):
 
     parser.add_argument('--cuda', default=True, type=str2bool, help='Use CUDA to train model')
     parser.add_argument('--cuda_ids', default=True, type=list, help='Allocate GPU to train model')
+    parser.add_argument("--dataset_type", required=True, choices=['TEXTLINE', 'KO', 'MATH'], help="dataset type")
     parser.add_argument("--model_path", required=True, type=str, help="pretrain model path")
     parser.add_argument("--img_path", required=True, type=str, help="Train image file path")
     parser.add_argument("--gt_path", required=True, type=str, help="Train ground truth file path")

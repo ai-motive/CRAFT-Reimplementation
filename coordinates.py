@@ -142,3 +142,36 @@ def convert_rect2_to_rect4(rect):
     x1, y1, x2, y2 = rect[0], rect[2], rect[1], rect[2]
     x3, y3, x4, y4 = rect[1], rect[3], rect[0], rect[3]
     return [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+
+def convert_rect4_to_rect2(rect):
+    # rect4 should be clockwise
+    #  rect4 = [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+    min_x = min(rect[0][0], rect[2][0])
+    max_x = max(rect[0][0], rect[2][0])
+    min_y = min(rect[0][1], rect[2][1])
+    max_y = max(rect[0][1], rect[2][1])
+    return [min_x, max_x, min_y, max_y]
+
+def convert_1d_to_matrix(rect, length):
+    # rect = [x1, y1, x2, y2, x3, y3, x4, y4]
+    return [rect[i:i + length] for i in range(0, len(rect), length)]
+
+
+def calc_global_box_pos_in_box(g_box, box, format='rect2'):
+    # box format :
+    # rect2 = [min_x, max_x, min_y, max_y]
+    # rect4 = [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+
+    if format == 'rect2':
+        new_box = [(g_box[0] + box[0]),     (g_box[0] + box[1]),
+                   (g_box[2] + box[2]),     (g_box[2] + box[3])]
+        return new_box
+
+    if format == 'rect4':
+        tl_x, tl_y, width, height = box[0][0], box[0][1], box[1][0]-box[0][0], box[2][1]-box[1][1]
+
+        new_box = [[(g_box[0][0] + box[0][0]),         (g_box[0][1] + box[0][1])],
+                   [(g_box[0][0] + box[0][0] + width), (g_box[0][1] + box[0][1])],
+                   [(g_box[0][0] + box[0][0] + width), (g_box[0][1] + box[0][1] + height)],
+                   [(g_box[0][0] + box[0][0]),         (g_box[0][1] + box[0][1] + height)]]
+        return new_box
