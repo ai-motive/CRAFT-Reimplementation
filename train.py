@@ -84,7 +84,6 @@ def adjust_learning_rate(optimizer, gamma, step, learning_rate):
         param_group['lr'] = lr
 
 def main(args, logger=None):
-
     # Load image & gt files
     img_fnames = utils.get_filenames(args.img_path, extensions=utils.IMG_EXTENSIONS)
     gt_fnames = utils.get_filenames(args.gt_path, extensions=utils.TEXT_EXTENSIONS)
@@ -153,7 +152,7 @@ def main(args, logger=None):
         train_time_st = time.time()
         loss_value = 0
         loss_avg.reset()
-        if epoch % 50 == 0 and epoch != 0: # default : 50
+        if epoch % args.valid_epoch == 0 and epoch != 0: # default : 50
             step_index += 1
             adjust_learning_rate(optimizer, args.gamma, step_index, args.learning_rate)
 
@@ -208,8 +207,8 @@ def main(args, logger=None):
                        os.path.join(rst_model_dir, 'lower_loss.pth'))
             utils.save_dict_to_json_file(rst_dict, os.path.join(rst_model_dir, 'lower_loss.json'))
 
-        # Epoch이 +50마다 저장
-        if epoch % 50 == 0 and epoch != 0: # default : 50
+        # Epoch이 valid_epoch 될때마다 저장 (default : 50)
+        if epoch % args.valid_epoch == 0 and epoch != 0:
             logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
             torch.save(net.module.state_dict(), rst_model_path)
             utils.save_dict_to_json_file(rst_dict, rst_json_path)
@@ -229,6 +228,7 @@ def parse_arguments(argv):
     parser.add_argument("--img_path", required=True, type=str, help="Train image file path")
     parser.add_argument("--gt_path", required=True, type=str, help="Train ground truth file path")
     parser.add_argument('--resume', default=None, type=str, help='Checkpoint state_dict file to resume training from')
+    parser.add_argument('--valid_epoch', default=50, type=int, help='validation epoch for model update and save')
     parser.add_argument('--batch_size', default=128, type=int, help='batch size of training')
     parser.add_argument('--learning_rate', default=3.2768e-5, type=float, help='initial learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='Momentum value for optim')
@@ -263,6 +263,7 @@ if __name__ == "__main__":
             sys.argv.extend(["--img_path", IMG_PATH])
             sys.argv.extend(["--gt_path", GT_PATH])
             sys.argv.extend(["--resume"])
+            sys.argv.extend(["--valid_epoch", '10'])
             sys.argv.extend(["--batch_size", '2'])
             sys.argv.extend(["--learning_rate", '3.2768e-5'])
             sys.argv.extend(["--momentum", '0.9'])

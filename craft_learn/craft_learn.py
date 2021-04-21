@@ -201,6 +201,7 @@ def main_train(ini, model_dir=None, logger=None):
                   '--cuda_ids', cuda_ids,
                   '--model_path', ini['pretrain_model_path'],
                   '--resume', ini['resume'],
+                  '--valid_epoch', ini['valid_epoch'],
                   '--batch_size', ini['batch_size'],
                   '--learning_rate', ini['learning_rate'],
                   '--momentum', ini['momentum'],
@@ -341,7 +342,7 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'KO' # TEXTLINE / KO / MATH
+DATASET_TYPE = 'MATH' # TEXTLINE / KO / MATH
 OP_MODE = 'TRAIN' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
 [OP_MODE DESC.]
