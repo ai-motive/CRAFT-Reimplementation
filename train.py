@@ -94,20 +94,22 @@ def main(args, logger=None):
     logger.info(" [TRAIN] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
     # Load model info.
-    model_dir, model_name, model_ext = utils.split_fname(args.model_path)
+    model_dir, model_name, model_ext = utils.split_fname(args.pretrain_model_path)
+    parent_model_dir = os.path.abspath(os.path.join(model_dir, os.pardir))
+
     model_date = datetime.today().strftime("%y%m%d")
-    rst_model_dir = os.path.join(args.model_root_path, model_date)
+    rst_model_dir = os.path.join(parent_model_dir, model_date)
     utils.folder_exists(rst_model_dir, create_=True)
 
     device = torch.device('cuda' if (torch.cuda.is_available() and args.cuda) else 'cpu')
     net = CRAFT(pretrained=False)
-    if args.model_path:
-        net.load_state_dict(copyStateDict(torch.load(args.model_path, map_location=device)))
+    if args.pretrain_model_path:
+        net.load_state_dict(copyStateDict(torch.load(args.pretrain_model_path, map_location=device)))
     if device.type == 'cuda':
         net = net.cuda()
     else:
         net = net()
-    logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.model_path))
+    logger.info(" [TRAIN] # Pretrained model loaded from : {}".format(args.pretrain_model_path))
 
     cuda_ids = [int(id) for id in args.cuda_ids]
     if device.type == 'cuda':
@@ -142,12 +144,12 @@ def main(args, logger=None):
     compare_loss = 1
     for epoch in range(1000000):
         # Save model path
-        if args.model_path:
+        if args.pretrain_model_path:
             rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)
             rst_json_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + '.json')
         else:
-            rst_model_path = os.path.join(rst_model_dir, model_date + '-craft_mathflat_{}_'.format(args.dataset_type.lower()) + repr(epoch) + '.pth')
-            rst_json_path = os.path.join(rst_model_dir, model_name + '-craft_mathflat_{}_'.format(args.dataset_type.lower()) + repr(epoch) + '.json')
+            rst_model_path = os.path.join(rst_model_dir, model_date + '-craft_mathflat_{}_'.format(args.tgt_class.lower()) + repr(epoch) + '.pth')
+            rst_json_path = os.path.join(rst_model_dir, model_name + '-craft_mathflat_{}_'.format(args.tgt_class.lower()) + repr(epoch) + '.json')
 
         train_time_st = time.time()
         loss_value = 0
@@ -206,12 +208,14 @@ def main(args, logger=None):
             torch.save(net.module.state_dict(),
                        os.path.join(rst_model_dir, 'lower_loss.pth'))
             utils.save_dict_to_json_file(rst_dict, os.path.join(rst_model_dir, 'lower_loss.json'))
+            logger.info(" [TRAIN] # Saved better model to : {}".format(os.path.join(rst_model_dir, 'lower_loss.pth')))
 
         # Epoch이 valid_epoch 될때마다 저장 (default : 50)
         if epoch % args.valid_epoch == 0 and epoch != 0:
             logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
             torch.save(net.module.state_dict(), rst_model_path)
             utils.save_dict_to_json_file(rst_dict, rst_json_path)
+            logger.info(" [TRAIN] # Saved model to : {}".format(rst_model_path))
 
         logger.info(" [TRAIN] # epoch {}:({}/{}) : training average loss : {:.3f}".format(epoch, index, len(real_data_loader), float(loss_avg.val())))
 
@@ -221,21 +225,23 @@ def main(args, logger=None):
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--cuda', default=True, type=str2bool, help='Use CUDA to train model')
-    parser.add_argument('--cuda_ids', default=True, type=list, help='Allocate GPU to train model')
-    parser.add_argument("--dataset_type", required=True, choices=['TEXTLINE', 'KO', 'MATH'], help="dataset type")
-    parser.add_argument("--model_path", required=True, type=str, help="pretrain model path")
+    parser.add_argument("--tgt_class", required=True, choices=['TEXTLINE', 'KO', 'MATH'], help="dataset type")
     parser.add_argument("--img_path", required=True, type=str, help="Train image file path")
     parser.add_argument("--gt_path", required=True, type=str, help="Train ground truth file path")
+
+    parser.add_argument("--pretrain_model_path", required=True, help="Pretrained model path")
     parser.add_argument('--resume', default=None, type=str, help='Checkpoint state_dict file to resume training from')
+
+    parser.add_argument('--cuda', default=True, type=str2bool, help='Use CUDA to train model')
+    parser.add_argument('--cuda_ids', default=True, type=list, help='Allocate GPU to train model')
+
     parser.add_argument('--valid_epoch', default=50, type=int, help='validation epoch for model update and save')
     parser.add_argument('--batch_size', default=128, type=int, help='batch size of training')
     parser.add_argument('--learning_rate', default=3.2768e-5, type=float, help='initial learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='Momentum value for optim')
     parser.add_argument('--weight_decay', default=5e-4, type=float, help='Weight decay for SGD')
     parser.add_argument('--gamma', default=0.1, type=float, help='Gamma update for SGD')
-    parser.add_argument('--num_workers', default=32, type=int, help='Number of workers used in dataloading')
-    parser.add_argument("--model_root_path", default=".", help="Saved model path")
+    parser.add_argument('--num_workers', default=32, type=int, help='Number of workers used in dataloading')    
 
     parser.add_argument("--logging_", default=False, action='store_true', help="Activate logging")
     parser.add_argument("--console_logging_", default=False, action='store_true', help="Activate logging")
@@ -247,10 +253,9 @@ def parse_arguments(argv):
 
 SELF_TEST_ = True
 OP_MODE = 'TRAIN'
-MODEL_PATH = "./pretrain/craft_mlt_25k.pth"
+PRETRAIN_MODEL_PATH = "./pretrain/craft_mathflat_30k_150_50.pth"
 IMG_PATH = "./data/CRAFT-pytorch/Light_SSen(top)/train/img/"
 GT_PATH = "./data/CRAFT-pytorch/Light_SSen(top)/train/gt/"
-MODEL_ROOT_PATH = "./pretrain/"
 
 
 if __name__ == "__main__":
@@ -259,7 +264,7 @@ if __name__ == "__main__":
             sys.argv.extend(["--op_mode", OP_MODE])
             # sys.argv.extend(["--cuda", 'True'])
             # sys.argv.extend(["--cuda_ids", '0'])
-            sys.argv.extend(["--model_path", MODEL_PATH])
+            sys.argv.extend(["--pretrain_model_path", PRETRAIN_MODEL_PATH])
             sys.argv.extend(["--img_path", IMG_PATH])
             sys.argv.extend(["--gt_path", GT_PATH])
             sys.argv.extend(["--resume"])
@@ -271,7 +276,6 @@ if __name__ == "__main__":
             sys.argv.extend(["--weight_decay", '5e-4'])
             sys.argv.extend(["--gamma", '0.1'])
             sys.argv.extend(["--num_workers", '0'])
-            sys.argv.extend(["--model_root_path", MODEL_ROOT_PATH])
             sys.argv.extend(["--logging_"])
             sys.argv.extend(["--console_logging_"])
         else:

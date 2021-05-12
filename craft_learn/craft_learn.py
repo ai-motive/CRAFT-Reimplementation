@@ -1,11 +1,7 @@
 import os
 import sys
 import json
-import pprint
-import time
 import argparse
-import shutil
-import random
 import torch
 import general_utils as utils
 import file_utils
@@ -14,11 +10,13 @@ import train, test
 import subprocess
 from sklearn.model_selection import train_test_split
 from easyocr.detection import get_detector, get_textbox
+from str_utils import replace_string_from_dict
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
+MARGIN = '\t'*20
 
 def load_craft_parameters(ini):
     params = {}
@@ -35,16 +33,19 @@ def load_craft_parameters(ini):
     params['add_margin'] = float(ini['add_margin'])
     return params
 
-def main_generate(ini, logger=None):
-    utils.folder_exists(ini['gt_path'], create_=True)
+def main_generate(ini, common_info, logger=None):
+    # Init. path variables
+    vars = {}
+    for key, val in ini.items():
+        vars[key] = replace_string_from_dict(val, common_info)
 
-    img_fnames = sorted(utils.get_filenames(ini['img_path'], extensions=utils.IMG_EXTENSIONS))
-    ann_fnames = sorted(utils.get_filenames(ini['ann_path'], extensions=utils.META_EXTENSION))
+    utils.folder_exists(vars['gt_path'], create_=True)
+
+    img_fnames = sorted(utils.get_filenames(vars['img_path'], extensions=utils.IMG_EXTENSIONS))
+    ann_fnames = sorted(utils.get_filenames(vars['ann_path'], extensions=utils.META_EXTENSION))
     logger.info(" [GENERATE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
     for idx, img_fname in enumerate(img_fnames):
-        logger.info(" [GENERATE-OCR] # Processing {} ({:d}/{:d})".format(img_fname, (idx + 1), len(img_fnames)))
-
         _, img_core_name, img_ext = utils.split_fname(img_fname)
         img = utils.imread(img_fname, color_fmt='RGB')
 
@@ -75,40 +76,46 @@ def main_generate(ini, logger=None):
             bboxes.append(rect4)
             texts.append(text)
 
-        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts, dirname=ini['gt_path'])
+        file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts, dirname=vars['gt_path'])
+        logger.info(" [GENERATE-OCR] # Generated to {} ({:d}/{:d})".format(vars['gt_path']+img_core_name+'.txt', (idx + 1), len(img_fnames)))
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
 
-def main_split(ini, logger=None):
-    utils.folder_exists(ini['img_path'], create_=False)
-    utils.folder_exists(ini['gt_path'], create_=False)
-    if utils.folder_exists(ini['train_path'], create_=False):
-        print(" @ Warning: train dataset path, {}, already exists".format(ini["train_path"]))
+def main_split(ini, common_info, logger=None):
+    # Init. path variables
+    vars = {}
+    for key, val in ini.items():
+        vars[key] = replace_string_from_dict(val, common_info)
+        
+    utils.folder_exists(vars['img_path'], create_=False)
+    utils.folder_exists(vars['gt_path'], create_=False)
+    if utils.folder_exists(vars['train_path'], create_=False):
+        print(" @ Warning: train dataset path, {}, already exists".format(vars["train_path"]))
         ans = input(" % Proceed (y/n) ? ")
         if ans.lower() != 'y':
             sys.exit()
-        # shutil.rmtree(ini['train_path'])
+        # shutil.rmtree(vars['train_path'])
 
-    if utils.folder_exists(ini['test_path'], create_=False):
-        print(" @ Warning: test dataset path, {}, already exists".format(ini["test_path"]))
+    if utils.folder_exists(vars['test_path'], create_=False):
+        print(" @ Warning: test dataset path, {}, already exists".format(vars["test_path"]))
         ans = input(" % Proceed (y/n) ? ")
         if ans.lower() != 'y':
             sys.exit()
-        # shutil.rmtree(ini['test_path'])
+        # shutil.rmtree(vars['test_path'])
 
-    train_ratio = float(ini['train_ratio'])
+    train_ratio = float(vars['train_ratio'])
     test_ratio = round(1.0-train_ratio, 2)
 
     lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
     tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
-    gt_list = sorted(utils.get_filenames(ini['gt_path'], extensions=utils.TEXT_EXTENSIONS))
+    gt_list = sorted(utils.get_filenames(vars['gt_path'], extensions=utils.TEXT_EXTENSIONS))
     train_gt_list, test_gt_list = train_test_split(gt_list, train_size=train_ratio, random_state=2000)
     train_img_list, test_img_list = [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for gt_path in train_gt_list], \
                                     [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for gt_path in test_gt_list]
 
-    train_img_path, test_img_path = os.path.join(ini['train_path'], 'img/'), os.path.join(ini['test_path'], 'img/')
-    train_gt_path, test_gt_path = os.path.join(ini['train_path'], tgt_dir+'/'), os.path.join(ini['test_path'], tgt_dir+'/')
+    train_img_path, test_img_path = os.path.join(vars['train_path'], 'img/'), os.path.join(vars['test_path'], 'img/')
+    train_gt_path, test_gt_path = os.path.join(vars['train_path'], tgt_dir+'/'), os.path.join(vars['test_path'], tgt_dir+'/')
     utils.folder_exists(train_img_path, create_=True), utils.folder_exists(test_img_path, create_=True)
     utils.folder_exists(train_gt_path, create_=True), utils.folder_exists(test_gt_path, create_=True)
 
@@ -132,40 +139,45 @@ def main_split(ini, logger=None):
             for gt_path in gt_list:
                 gt_sym_cmd = 'ln "{}" "{}"'.format(gt_path, gt_link_path)  # to all files
                 subprocess.call(gt_sym_cmd, shell=True)
-            logger.info(" # Link gt files {} -> {}.".format(gt_list[0], gt_link_path))
+            logger.info(" # Link gt files {}\n{}->{}.".format(gt_list[0], MARGIN, gt_link_path))
 
             # link img_path
             for img_path in img_list:
                 img_sym_cmd = 'ln "{}" "{}"'.format(img_path, img_link_path)  # to all files
                 subprocess.call(img_sym_cmd, shell=True)
-            logger.info(" # Link img files {} -> {}.".format(img_list[0], img_link_path))
+            logger.info(" # Link img files {}\n{}->{}.".format(img_list[0], MARGIN, img_link_path))
 
     print(" # (train, test) = ({:d}, {:d}) -> {:d} % ".
           format(len(train_gt_list), len(test_gt_list), int(float(len(train_gt_list))/float(len(train_gt_list)+len(test_gt_list))*100)))
     return True
 
 
-def main_merge(ini, logger=None):
-    utils.folder_exists(ini['total_dataset_path'], create_=True)
+def main_merge(ini, common_info, logger=None):
+    # Init. path variables
+    vars = {}
+    for key, val in ini.items():
+        vars[key] = replace_string_from_dict(val, common_info)
+        
+    utils.folder_exists(vars['total_dataset_path'], create_=True)
 
-    datasets = [dataset for dataset in os.listdir(ini['dataset_path']) if dataset != 'total']
+    datasets = [dataset for dataset in os.listdir(vars['dataset_path']) if dataset != 'total']
     sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
 
     lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
     tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     if len(sort_datasets) != 0:
         for dir_name in sort_datasets:
-            src_train_path, src_test_path = os.path.join(ini['dataset_path'], dir_name, 'train'), os.path.join(ini['dataset_path'], dir_name, 'test')
+            src_train_path, src_test_path = os.path.join(vars['dataset_path'], dir_name, 'train'), os.path.join(vars['dataset_path'], dir_name, 'test')
             src_train_img_path, src_train_gt_path = os.path.join(src_train_path, 'img/'), os.path.join(src_train_path, tgt_dir+'/')
             src_test_img_path, src_test_gt_path = os.path.join(src_test_path, 'img/'), os.path.join(src_test_path, tgt_dir+'/')
 
-            dst_train_path, dst_test_path = os.path.join(ini['total_dataset_path'], 'train'), os.path.join(ini['total_dataset_path'], 'test')
+            dst_train_path, dst_test_path = os.path.join(vars['total_dataset_path'], 'train'), os.path.join(vars['total_dataset_path'], 'test')
             dst_train_img_path, dst_train_gt_path = os.path.join(dst_train_path, 'img/'), os.path.join(dst_train_path, tgt_dir+'/')
             dst_test_img_path, dst_test_gt_path = os.path.join(dst_test_path, 'img/'), os.path.join(dst_test_path, tgt_dir+'/')
 
             if utils.folder_exists(dst_train_img_path) and utils.folder_exists(dst_train_gt_path) and \
                     utils.folder_exists(dst_test_img_path) and utils.folder_exists(dst_test_gt_path):
-                logger.info(" # Already {} is exist".format(ini['total_dataset_path']))
+                logger.info(" # Already {} is exist".format(vars['total_dataset_path']))
             else:
                 utils.folder_exists(dst_train_img_path, create_=True), utils.folder_exists(dst_train_gt_path, create_=True)
                 utils.folder_exists(dst_test_img_path, create_=True), utils.folder_exists(dst_test_gt_path, create_=True)
@@ -182,43 +194,47 @@ def main_merge(ini, logger=None):
                 # link img_path
                 img_sym_cmd = 'ln "{}"* "{}"'.format(src_img_path, dst_img_path)  # to all files
                 subprocess.call(img_sym_cmd, shell=True)
-                logger.info(" # Link img files {} -> {}.".format(src_img_path, dst_img_path))
+                logger.info(" # Link img files {}\n{}->{}.".format(src_img_path, MARGIN, dst_img_path))
 
                 # link gt_path
                 gt_sym_cmd = 'ln "{}"* "{}"'.format(src_gt_path, dst_gt_path)  # to all files
                 subprocess.call(gt_sym_cmd, shell=True)
-                logger.info(" # Link gt files {} -> {}.".format(src_gt_path, dst_gt_path))
+                logger.info(" # Link gt files {}\n{}->{}.".format(src_gt_path, MARGIN, dst_gt_path))
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
 
-def main_train(ini, model_dir=None, logger=None):
-    cuda_ids = ini['cuda_ids'].split(',')
-    train_args = ['--dataset_type', DATASET_TYPE,
-                  '--img_path', ini['train_img_path'],
-                  '--gt_path', ini['train_gt_path'],
-                  '--cuda', ini['cuda'],
-                  '--cuda_ids', cuda_ids,
-                  '--model_path', ini['pretrain_model_path'],
-                  '--resume', ini['resume'],
-                  '--valid_epoch', ini['valid_epoch'],
-                  '--batch_size', ini['batch_size'],
-                  '--learning_rate', ini['learning_rate'],
-                  '--momentum', ini['momentum'],
-                  '--weight_decay', ini['weight_decay'],
-                  '--gamma', ini['gamma'],
-                  '--num_workers', ini['num_workers'],
-                  '--model_root_path', ini['model_root_path']]
+def main_train(ini, common_info, logger=None):
+    # Init. path variables
+    vars = {}
+    for key, val in ini.items():
+        vars[key] = replace_string_from_dict(val, common_info)
+        
+    cuda_ids = vars['cuda_ids'].split(',')
+    latest_model_dir = max([os.path.join(vars['root_model_path'],d) for d in os.listdir(vars['root_model_path'])],
+                                key=lambda x : x)
+    latest_model_path = os.path.join(latest_model_dir, 'lower_loss.pth')
+
+    train_args = [
+        '--tgt_class', common_info['tgt_class'].upper(),
+        '--img_path', vars['train_img_path'],
+        '--gt_path', vars['train_gt_path'],
+        '--pretrain_model_path', latest_model_path,
+        '--cuda', vars['cuda'],
+        '--cuda_ids', cuda_ids,
+        '--resume', vars['resume'],
+        '--valid_epoch', vars['valid_epoch'],
+        '--batch_size', vars['batch_size'],
+        '--learning_rate', vars['learning_rate'],
+        '--momentum', vars['momentum'],
+        '--weight_decay', vars['weight_decay'],
+        '--gamma', vars['gamma'],
+        '--num_workers', vars['num_workers'],
+    ]
 
     train.main(train.parse_arguments(train_args), logger=logger)
-    if not model_dir:
-        model_dir = max([os.path.join(ini['model_root_path'],d) for d in os.listdir(ini["model_root_path"])],
-                        key=os.path.getmtime)
-    else:
-        model_dir = os.path.join(ini["model_root_path"], model_dir)
-    model_name = os.path.basename(model_dir)
-    model_name_pth = os.path.join(model_dir, model_name + ".pth")
-    return True, model_name
+
+    return True
 
 def main_test(ini, model_dir=None, logger=None):
     if not model_dir:
@@ -244,7 +260,7 @@ def main_split_textline(ini, logger=None):
     logger.info(" [SPLIT-TEXTLINE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
     for idx, img_fname in enumerate(img_fnames):
-        logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx + 1), len(img_fnames)))
+        logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx+1), len(img_fnames)))
 
         _, img_core_name, img_ext = utils.split_fname(img_fname)
         img = utils.imread(img_fname, color_fmt='RGB')
@@ -258,10 +274,10 @@ def main_split_textline(ini, logger=None):
 
         # Get textbox
         text_boxes = get_textbox(detector, img,
-                               canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
-                               text_threshold=craft_params['text_threshold'], link_threshold=craft_params['link_threshold'],
-                               low_text=craft_params['low_text'], poly=False,
-                               device=device, optimal_num_chars=True)
+                                 canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
+                                 text_threshold=craft_params['text_threshold'], link_threshold=craft_params['link_threshold'],
+                                 low_text=craft_params['low_text'], poly=False,
+                                 device=device, optimal_num_chars=True)
 
         # Check crop img
         for text_box in text_boxes:
@@ -302,25 +318,29 @@ def main_split_textline(ini, logger=None):
 
 def main(args):
     ini = utils.get_ini_parameters(args.ini_fname)
+    common_info = {}
+    for key, val in ini['COMMON'].items():
+        common_info[key] = val
+
     logger = utils.setup_logger_with_ini(ini['LOGGER'],
                                          logging_=args.logging_, console_=args.console_logging_)
 
     if args.op_mode == 'GENERATE':
-        main_generate(ini['GENERATE'], logger=logger)
+        main_generate(ini[args.op_mode], common_info, logger=logger)
     elif args.op_mode == 'SPLIT':
-        main_split(ini['SPLIT'], logger=logger)
+        main_split(ini[args.op_mode], common_info, logger=logger)
     elif args.op_mode == 'MERGE':
-        main_merge(ini['MERGE'], logger=logger)
+        main_merge(ini[args.op_mode], common_info, logger=logger)
     elif args.op_mode == 'TRAIN':
-        main_train(ini['TRAIN'], model_dir=args.model_dir, logger=logger)
+        main_train(ini[args.op_mode], common_info, logger=logger)
     elif args.op_mode == 'TEST':
-        main_test(ini['TEST'], model_dir=args.model_dir, logger=logger)
+        main_test(ini[args.op_mode], common_info, logger=logger)
     elif args.op_mode == 'TRAIN_TEST':
-        ret, model_dir = main_train(ini['TRAIN'], model_dir=args.model_dir, logger=logger)
-        main_test(ini['TEST'], model_dir, logger=logger)
+        ret, model_dir = main_train(ini['TRAIN'], common_info, logger=logger)
+        main_test(ini['TEST'], common_info, logger=logger)
         print(" # Trained model directory is {}".format(model_dir))
     elif args.op_mode == 'SPLIT_TEXTLINE':
-        main_split_textline(ini['SPLIT_TEXTLINE'], logger=logger)
+        main_split_textline(ini[args.op_mode], common_info, logger=logger)
     else:
         print(" @ Error: op_mode, {}, is incorrect.".format(args.op_mode))
 
@@ -342,15 +362,15 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'MATH' # TEXTLINE / KO / MATH
+DATASET_TYPE = 'MATH' # KO / MATH / TEXTLINE
 OP_MODE = 'TRAIN' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
 [OP_MODE DESC.]
-GENERATE : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
-SPLIT : TRAIN & TEST 비율에 맞춰 각각의 폴더에 저장
-MERGE : 만개 단위로 분할된 폴더를 total 폴더로 합침
-TRAIN : total/train 폴더 데이터를 이용하여 CRAFT 학습 수행
-TEST : total/test 폴더 데이터를 이용하여 CRAFT 평가 수행
+GENERATE       : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
+SPLIT          : TRAIN & TEST 비율에 맞춰 각각의 폴더에 저장
+MERGE          : 만개 단위로 분할된 폴더를 total 폴더로 합침
+TRAIN          : total/train 폴더 데이터를 이용하여 CRAFT 학습 수행
+TEST           : total/test 폴더 데이터를 이용하여 CRAFT 평가 수행
 SPLIT_TEXTLINE : 각각의 ann 폴더의  데이터를 수식/비수식 영역으로 분리후 각각의 refine_ann 폴더에 JSON 파일 저장  
 """
 if DATASET_TYPE != 'TEXTLINE':

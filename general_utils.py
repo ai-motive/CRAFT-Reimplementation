@@ -914,6 +914,38 @@ def get_filenames_in_a_directory(dir_name):
 
     return out_filenames
 
+def get_model_dir(root_dir, category, method, version, result_file=""):
+    """ Get the directory having model.
+    :param root_dir:
+    :param category:
+    :param method:
+    :param version:
+    :param result_file:
+    :return:
+    """
+    root_dirs = root_dir.split('/')
+    dir_path = os.path.join(*root_dirs, category, method)
+    validate_directories(dir_path)
+    versions = sorted(next(os.walk(dir_path))[1], reverse=True)
+    model_dir = os.path.join(dir_path, version)
+
+    if os.path.exists(os.path.join(model_dir, result_file)):
+        return model_dir
+
+    for date in versions:
+        model_dir = os.path.join(dir_path, date)
+        if os.path.exists(os.path.join(model_dir, result_file)):
+            return model_dir
+
+    return model_dir
+
+def validate_directories(path, root_dir=''):
+    joined_dirs = root_dir
+    dirs_list = path.split('/')
+    for i in range(len(dirs_list)):
+        joined_dirs = os.path.join(joined_dirs, dirs_list[i])
+        if not os.path.exists(joined_dirs):
+            os.makedirs(joined_dirs)
 
 def transpose_list(in_list):
     """
