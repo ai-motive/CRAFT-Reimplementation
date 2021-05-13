@@ -914,27 +914,26 @@ def get_filenames_in_a_directory(dir_name):
 
     return out_filenames
 
-def get_model_dir(root_dir, category, method, version, result_file=""):
+def get_model_dir(root_dir, category='', model_file='', version='latest'):
     """ Get the directory having model.
-    :param root_dir:
-    :param category:
-    :param method:
-    :param version:
+    :param root_dir: root dir.
+    :param category: child dir.
+    :param version: 210512 or latest
     :param result_file:
     :return:
     """
     root_dirs = root_dir.split('/')
-    dir_path = os.path.join(*root_dirs, category, method)
+    dir_path = os.path.join(*root_dirs, category)
     validate_directories(dir_path)
     versions = sorted(next(os.walk(dir_path))[1], reverse=True)
     model_dir = os.path.join(dir_path, version)
 
-    if os.path.exists(os.path.join(model_dir, result_file)):
+    if os.path.exists(os.path.join(model_dir, model_file)):
         return model_dir
 
     for date in versions:
         model_dir = os.path.join(dir_path, date)
-        if os.path.exists(os.path.join(model_dir, result_file)):
+        if os.path.exists(os.path.join(model_dir, model_file)):
             return model_dir
 
     return model_dir

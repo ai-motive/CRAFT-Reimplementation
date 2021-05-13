@@ -211,9 +211,9 @@ def main_train(ini, common_info, logger=None):
         vars[key] = replace_string_from_dict(val, common_info)
         
     cuda_ids = vars['cuda_ids'].split(',')
-    latest_model_dir = max([os.path.join(vars['root_model_path'],d) for d in os.listdir(vars['root_model_path'])],
-                                key=lambda x : x)
-    latest_model_path = os.path.join(latest_model_dir, 'lower_loss.pth')
+    model_name = 'lower_loss.pth'
+    latest_model_dir = utils.get_model_dir(root_dir=vars['root_model_path'], model_file=model_name, version='latest')
+    latest_model_path = os.path.join(latest_model_dir, model_name)
 
     train_args = [
         '--tgt_class', common_info['tgt_class'].upper(),
