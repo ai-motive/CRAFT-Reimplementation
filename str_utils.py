@@ -35,7 +35,7 @@ def extract_formula_positions_from_text(text):
 
     for i, (prev_ch, curr_ch, next_ch) in enumerate(get_prev_and_next(text)):
         # (한글+빈칸)
-        if is_korean(curr_ch) or (curr_ch is ' '):
+        if is_korean(curr_ch) or (curr_ch == ' '):
             korean_chars.append(curr_ch)
         else:
             korean_chars = []

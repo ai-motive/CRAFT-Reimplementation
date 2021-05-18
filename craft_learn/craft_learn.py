@@ -1,22 +1,31 @@
 import os
 import sys
 import json
+import pprint
 import argparse
+import shutil
+import math
 import torch
 import general_utils as utils
 import file_utils
 import coordinates as coord
 import train, test
 import subprocess
+from datetime import datetime
 from sklearn.model_selection import train_test_split
 from easyocr.detection import get_detector, get_textbox
-from str_utils import replace_string_from_dict
+from easyocr.utils import group_text_box
+from str_utils import replace_string_from_dict, get_prev_and_next, is_korean
+from test_refine_box import GTS, PREDS
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
 MARGIN = '\t'*20
+
+def str2bool(v):
+  return v.lower() in ('yes', 'true', 't', '1')
 
 def load_craft_parameters(ini):
     params = {}
@@ -253,67 +262,341 @@ def main_test(ini, model_dir=None, logger=None):
 
     test.main(test.parse_arguments(test_args), logger=logger)
 
-def main_split_textline(ini, logger=None):
-    img_fnames = sorted(utils.get_filenames(ini['dataset_path'], recursive_=True, extensions=utils.IMG_EXTENSIONS))
-    ann_fnames = sorted(utils.get_filenames(ini['dataset_path'], recursive_=True, extensions=utils.META_EXTENSION))
-    logger.info(" [SPLIT-TEXTLINE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
+def main_split_textline(ini, common_info, logger=None):
+    # Init. path variables
+    except_dir_names = common_info['except_dir_names'].replace(' ', '').split(',')
+    vars = {}
+    for key, val in ini.items():
+        vars[key] = replace_string_from_dict(val, common_info)
+    link_ = str2bool(vars['link_'])
 
-    for idx, img_fname in enumerate(img_fnames):
-        logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx+1), len(img_fnames)))
+    # Init. CRAFT
+    gpu_ = str2bool(vars['cuda'])
+    device = torch.device('cuda' if (torch.cuda.is_available() and gpu_) else 'cpu')
 
-        _, img_core_name, img_ext = utils.split_fname(img_fname)
-        img = utils.imread(img_fname, color_fmt='RGB')
+    ko_model_dir, math_model_dir = utils.get_model_dir(root_dir=vars['ko_model_path'], model_file=vars['model_name']), \
+                                        utils.get_model_dir(root_dir=vars['math_model_path'], model_file=vars['model_name'])
+    ko_detector = get_detector(os.path.join(ko_model_dir, vars['model_name']), device, quantize=False)
+    math_detector = get_detector(os.path.join(math_model_dir, vars['model_name']), device, quantize=False)
 
-        # Use CRAFT
-        gpu_ = True if ini['cuda'] == 'True' else False
-        device = torch.device('cuda' if (torch.cuda.is_available() and gpu_) else 'cpu')
-        detector = get_detector(ini['pretrain_model_path'], device, quantize=False)
-        easyocr_ini = utils.get_ini_parameters(os.path.join(_this_folder_, ini['ocr_ini_fname']))
-        craft_params = load_craft_parameters(easyocr_ini['CRAFT'])
+    easyocr_ini = utils.get_ini_parameters(os.path.join(_this_folder_, vars['ocr_ini_fname']))
+    craft_params = load_craft_parameters(easyocr_ini['CRAFT'])
 
-        # Get textbox
-        text_boxes = get_textbox(detector, img,
-                                 canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
-                                 text_threshold=craft_params['text_threshold'], link_threshold=craft_params['link_threshold'],
-                                 low_text=craft_params['low_text'], poly=False,
-                                 device=device, optimal_num_chars=True)
+    datasets = [dataset for dataset in os.listdir(vars['textline_dataset_path']) if dataset != 'total']
+    sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
 
-        # Check crop img
-        for text_box in text_boxes:
-            rect4 = coord.convert_1d_to_matrix(text_box, length=2)
-            rect2 = coord.convert_rect4_to_rect2(rect4)
-            crop_img = img[rect2[2]:rect2[3], rect2[0]:rect2[1]]
-            utils.imshow(crop_img)
+    # Preprocess datasets
+    if link_:
+        link_datasets(src_dir_path=vars['textline_dataset_path'], dst_dir_path=vars['refine_dataset_path'],
+                      dir_names=sort_datasets, except_dir_names=except_dir_names, tgt_dir_name='img/', logger=logger)
 
-        # Load json
-        ann_fname = ann_fnames[idx]
-        _, ann_core_name, _ = utils.split_fname(ann_fname)
-        ann_core_name = ann_core_name.replace('.jpg', '')
-        if ann_core_name == img_core_name:
-            with open(ann_fname) as json_file:
-                json_data = json.load(json_file)
-                objects = json_data['objects']
-                # pprint.pprint(objects)
+    # Load and split textlines
+    for dir_name in sort_datasets:
+        if dir_name in except_dir_names:
+            logger.info(" # {} has already been split. ".format(dir_name))
+            continue
 
-        bboxes = []
-        texts = []
-        for obj in objects:
-            class_name = obj['classTitle']
-            if class_name != 'textline':
-                continue
+        img_path = os.path.join(vars['textline_dataset_path'], dir_name, 'img/')
+        ann_path = os.path.join(vars['textline_dataset_path'], dir_name, 'ann/')
 
-            [x1, y1], [x2, y2] = obj['points']['exterior']
-            text = obj['description']
-            x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
-            if x_max - x_min <= 0 or y_max - y_min <= 0:
-                continue
+        img_fnames = sorted(utils.get_filenames(img_path, extensions=utils.IMG_EXTENSIONS))
+        ann_fnames = sorted(utils.get_filenames(ann_path, extensions=utils.META_EXTENSION))
 
-            rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
-            bboxes.append(rect4)
-            texts.append(text)
+        logger.info(" [SPLIT-TEXTLINE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
+
+        for idx, img_fname in enumerate(img_fnames):
+            logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx+1), len(img_fnames)))
+            img = utils.imread(os.path.join(img_fname), color_fmt='RGB')
+            draw_img = img.copy()
+
+            # Load json
+            img_bname = os.path.basename(img_fname)
+            ann_fname = ann_fnames[idx]
+            ann_bname = os.path.basename(ann_fname)
+            if ann_bname.replace('.json', '') == img_bname:
+                with open(os.path.join(ann_fname)) as json_file:
+                    json_data = json.load(json_file)
+                    objects = json_data['objects']
+                    # pprint.pprint(objects)
+
+            # Get ground truths
+            gts = []
+            gt_crop_boxes, gt_crop_imgs = [], []
+            for idx, obj in reversed(list(enumerate(objects))):
+                class_name = obj['classTitle']
+                if (class_name != common_info['tgt_class']):
+                    continue
+
+                [x1, y1], [x2, y2] = obj['points']['exterior']
+                text = obj['description']
+
+                # Remove textline objects
+                del objects[idx]
+
+                x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
+                if x_max - x_min <= 0 or y_max - y_min <= 0:
+                    continue
+
+                rect2 = [x_min, x_max, y_min, y_max]
+                rect4 = coord.convert_rect2_to_rect4(rect2)
+                gts.append([rect4, text, class_name])
+                gt_crop_boxes.append(rect2)
+                gt_crop_imgs.append(img[y_min:y_max, x_min:x_max])
+
+                box = [x_min, y_min, x_max, y_max]
+                draw_img = utils.draw_box_on_img(draw_img, box)
+
+            # # Get predict results
+            # predicts = []
+            # for detector in [ko_detector, math_detector]:
+            #     for crop_box, crop_img in zip(gt_crop_boxes, gt_crop_imgs):
+            #         tgt_class = 'ko' if (detector is ko_detector) else ('math' if (detector is math_detector) else 'None')
+            #         boxes = get_textbox(detector, crop_img,
+            #                             canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
+            #                             text_threshold=craft_params['text_threshold'], link_threshold=craft_params['link_threshold'],
+            #                             low_text=craft_params['low_text'], poly=False,
+            #                             device=device, optimal_num_chars=True)
+            #
+            #         horizontal_list, _ = group_text_box(boxes, craft_params['slope_ths'],
+            #                                             craft_params['ycenter_ths'], craft_params['height_ths'],
+            #                                             craft_params['width_ths'], craft_params['add_margin'])
+            #
+            #         for h_box in horizontal_list:
+            #             new_h_box = coord.calc_global_box_pos_in_box(crop_box, h_box)
+            #             x_min, x_max, y_min, y_max = new_h_box
+            #             rect4 = coord.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
+            #             predicts.append([rect4, '', tgt_class])
+            #             # crop_img = img[y_min:y_max, x_min:x_max]
+            #             # utils.imshow(crop_img)
+            #
+            #             box = (x_min, y_min, x_max, y_max)
+            #             draw_img = utils.draw_box_on_img(draw_img, box, color=utils.BLUE)
+
+            # # Save result image
+            # utils.imwrite(draw_img, os.path.join(vars['rst_path'], 'draw_' + img_bname))
+
+            # Compare GT. & PRED.
+            refine_gts = refine_ground_truths_by_predict_values(GTS, PREDS) ## TODO : need to eval.
+
+            # Insert refine_gts to json
+            obj_id = objects[-1]['id'] + 1
+            refine_json_data, refine_obj_id = update_json_from_results(json_data, obj_id,
+                                                                       ['ko', 'math'], refine_gts)
+
+            # Save refined json
+            rst_ann_fname = ann_fname.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
+            with open(rst_ann_fname, 'w', encoding='utf-8') as f:
+                json.dump(refine_json_data, f, ensure_ascii=False, indent=4)
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
+
+def link_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, tgt_dir_name='img/', logger=None):
+    if dir_names:
+        for dir_name in dir_names:
+            if dir_name in except_dir_names:
+                logger.info(" # {} has already been split. ".format(dir_name))
+                continue
+
+            src_path = os.path.join(src_dir_path, dir_name, tgt_dir_name)
+
+            dst_path = os.path.join(dst_dir_path, dir_name, tgt_dir_name)
+
+            if utils.folder_exists(dst_path):
+                logger.info(" # Already {} is exist".format(dst_path))
+            else:
+                utils.folder_exists(dst_path, create_=True)
+
+            # check & link img_path, ann_path
+            src_fnames = sorted(utils.get_filenames(src_path, extensions=utils.IMG_EXTENSIONS))
+            src_bnames = [os.path.basename(src_fname) for src_fname in src_fnames]
+            dst_fnames = sorted(utils.get_filenames(dst_path, extensions=utils.IMG_EXTENSIONS))
+            dst_bnames = [os.path.basename(dst_fname) for dst_fname in dst_fnames]
+
+            if any(src_bname not in dst_bnames for src_bname in src_bnames):
+                img_sym_cmd = 'ln "{}"* "{}"'.format(src_path, dst_path)  # to all files
+                subprocess.call(img_sym_cmd, shell=True)
+                logger.info(" # Link img files {}\n{}->\t{}.".format(src_path, MARGIN, dst_path))
+    else:
+        logger.info(" [SPLIT-TEXTLINE] # Sorted dataset is empty !!!")
+
+def refine_ground_truths_by_predict_values(gts, preds):
+    refine_gts = []
+    for gt_idx, (gt_box, gt_text, gt_class) in enumerate(gts):
+        gt_rect2 = coord.convert_rect4_to_rect2(gt_box) # [min_x, max_x, min_y, max_y]
+        gt_min_x, gt_max_x, gt_min_y, gt_max_y = gt_rect2
+
+        # gt 근처에 있는 pred. 후보 영역 추출
+        cand_preds = []
+        for pred in preds:
+            pred_box, pred_text, pred_class = pred
+            pred_rect2 = coord.convert_rect4_to_rect2(pred_box)
+            pred_min_x, pred_max_x, pred_min_y, pred_max_y = pred_rect2
+            pred_center_x, pred_center_y = (pred_min_x+pred_max_x)/2, (pred_min_y+pred_max_y)/2
+
+            if (gt_min_x < pred_center_x < gt_max_x) and (gt_min_y < pred_center_y < gt_max_y):
+                cand_preds.append(pred)
+
+        # (x, y) 좌표를 기반으로 sorting
+        sort_preds = sorted(cand_preds, key=lambda x: (x[0][0], x[0][1]))
+
+        # 박스 사이즈를 기반으로 중복된 preds. 박스 제거
+        for i, sort_pred in reversed(list(enumerate(sort_preds))):
+            sort_pred_box, sort_pred_text, sort_pred_class = sort_pred
+            sort_pred_rect2 = coord.convert_rect4_to_rect2(sort_pred_box)
+            sort_min_x, sort_max_x, sort_min_y, sort_max_y = sort_pred_rect2
+            sort_area_size = (sort_max_x-sort_min_x)*(sort_max_y-sort_min_y)
+            if len(sort_preds) > 1:
+                for j, ref_pred in reversed(list(enumerate(sort_preds[:i]))):
+                    ref_pred_box, ref_pred_text, ref_pred_class = ref_pred
+                    ref_pred_rect2 = coord.convert_rect4_to_rect2(ref_pred_box)
+                    ref_min_x, ref_max_x, ref_min_y, ref_max_y = ref_pred_rect2
+                    ref_area_size = (ref_max_x - ref_min_x) * (ref_max_y - ref_min_y)
+
+                    if ((sort_area_size / ref_area_size) >= 0.9) and (abs(sort_min_x-ref_min_x) <= 10):
+                        del sort_preds[i]
+                        break
+
+        remove_preds = sort_preds
+
+        # Create refined gts
+        split_gts = []
+        for k, remove_pred in enumerate(remove_preds):
+            remove_pred_box, remove_pred_text, remove_pred_class = remove_pred
+            remove_pred_rect2 = coord.convert_rect4_to_rect2(remove_pred_box)
+            remove_min_x, remove_max_x, remove_min_y, remove_max_y = remove_pred_rect2
+
+            # 예측 개수를 기반으로 x, y값 조정
+            # 예측 개수가 1개 이하 일때
+            if len(remove_preds) <= 1:
+                min_x, min_y = gt_min_x, gt_min_y
+                max_x, max_y = gt_max_x, gt_max_y
+                rect4 = coord.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
+                split_gts.append([rect4, '', remove_pred_class])
+
+            # 예측 개수가 2개 이상 일때
+            else:
+                # 첫번째 영역 처리
+                if k == 0:
+                    min_x, min_y = gt_min_x, gt_min_y
+                    max_x, max_y = remove_max_x, gt_max_y
+                    rect4 = coord.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
+                    split_gts.append([rect4, '', remove_pred_class])
+
+                # 마지막 영역 처리
+                elif k == len(remove_preds)-1:
+                    min_x, min_y = remove_min_x, gt_min_y
+                    max_x, max_y = gt_max_x, gt_max_y
+                    rect4 = coord.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
+                    split_gts.append([rect4, '', remove_pred_class])
+
+                # 중간 영역 처리
+                else:
+                    min_x, min_y = remove_min_x, gt_min_y
+                    max_x, max_y = remove_max_x, gt_max_y
+                    rect4 = coord.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
+                    split_gts.append([rect4, '', remove_pred_class])
+
+        # pred_class를 기반으로 text filling
+        ch_pos = 0
+        for l, split_gt in enumerate(split_gts):
+            split_gt_box, split_gt_text, split_gt_class = split_gt
+            refine_gts.append([split_gt_box, '', split_gt_class])
+            # gt_text = gt_text[ch_pos:]
+            for m, (prev_ch, curr_ch, next_ch) in enumerate(get_prev_and_next(gt_text[ch_pos:])):
+                if (len(gt_text) <= 1) and (curr_ch == ' ' or curr_ch == ''):
+                    refine_gts[l][1] += curr_ch
+                    ch_pos += 1
+                    refine_gts[l][2] = 'ko'
+                    break
+
+                if ch_pos == 0:
+                    if is_korean(curr_ch):
+                        refine_gts[l][1] += curr_ch
+                        ch_pos += 1
+                        refine_gts[l][2] = 'ko'
+                    elif is_korean(curr_ch) == False:
+                        refine_gts[l][1] += curr_ch
+                        ch_pos += 1
+                        refine_gts[l][2] = 'math'
+                else:
+                    # (한글+빈칸) and (prev_ch_class == curr_ch_class)
+                    if (is_korean(prev_ch) and (curr_ch == ' ')) or ((prev_ch == ' ' or prev_ch == None) and is_korean(curr_ch)) \
+                            or (is_korean(prev_ch) and is_korean(curr_ch)):
+                        refine_gts[l][1] += curr_ch
+                        ch_pos += 1
+                        refine_gts[l][2] = 'ko'
+
+                    # (수식+빈칸) and (prev_ch_class == curr_ch_class)
+                    elif (not(is_korean(prev_ch)) and (curr_ch == ' ')) or ((prev_ch == ' ' or prev_ch == None) and not(is_korean(curr_ch)))  \
+                            or ((is_korean(prev_ch) == False) and (is_korean(curr_ch) == False)):
+                        refine_gts[l][1] += curr_ch
+                        ch_pos += 1
+                        refine_gts[l][2] = 'math'
+
+                    # class가 바뀔때
+                    curr_class = refine_gts[l][2]
+                    if (curr_class == 'ko' and not(is_korean(next_ch)) and (next_ch != ' ')) or \
+                            (curr_class == 'math' and (is_korean(next_ch)) and (next_ch != ' ')):
+                        break
+
+    return refine_gts
+
+def update_json_from_results(json_data, obj_id, class_names, results):
+    for i, (box, value, class_name) in enumerate(results):
+        if class_name in class_names:
+            rect2 = coord.convert_rect4_to_rect2(box)
+            update_obj = get_obj_data(obj_id, class_name, rect2, value)
+            json_data['objects'].append(update_obj)
+            obj_id += 1
+
+    return json_data, obj_id
+
+def get_obj_data(obj_id, classTitle, box, value):
+    if classTitle == 'table':
+        classId = 2790491
+        value = ''
+    elif classTitle == 'graph':
+        classId = 2772037
+        value = ''
+    elif classTitle == 'textline':
+        classId = 2772036
+    elif classTitle == 'math':
+        classId = 2883527
+    elif classTitle == 'ko':
+        classId = 2883530
+
+    date = datetime.today().strftime("%Y%m%d%H%M%S")
+    year, month, day, hour, minute, second = date[:4], date[4:6], date[6:8], date[8:10], date[10:12], date[12:14]
+
+    obj_data = {}
+    update_obj = update_obj_data(obj_data,
+                                 id=obj_id, classId=classId,
+                                 description=value, geometryType='rectangle',
+                                 labelerLogin='freewheelin',
+                                 createdAt=f'{year}-{month}-{day}T{hour}:{minute}:{second}.271Z', updatedAt=f'{year}-{month}-{day}T{hour}:{minute}:{second}.271Z',
+                                 classTitle=classTitle,
+                                 tags=[],
+                                 points={
+                                     'exterior': [[box[0], box[2]],
+                                                  [box[1], box[3]]],
+                                     'interior': [[]],
+                                 })
+    return update_obj
+
+def update_obj_data(obj_data, id, classId, description, geometryType, labelerLogin, createdAt, updatedAt, tags, classTitle, points):
+    obj_data['id'] = id
+    obj_data['classId'] = classId
+    obj_data['description'] = description
+    obj_data['geometryType'] = geometryType
+    obj_data['labelerLogin'] = labelerLogin
+    obj_data['createdAt'] = createdAt
+    obj_data['updatedAt'] = updatedAt
+    obj_data['tags'] = tags
+    obj_data['classTitle'] = classTitle
+    obj_data['classId'] = classId
+    obj_data['points'] = points
+    return obj_data
 
 def main(args):
     ini = utils.get_ini_parameters(args.ini_fname)
@@ -361,8 +644,8 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'KO' # KO / MATH / TEXTLINE
-OP_MODE = 'TRAIN' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
+DATASET_TYPE = 'TEXTLINE' # KO / MATH / TEXTLINE
+OP_MODE = 'SPLIT_TEXTLINE' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
 [OP_MODE DESC.]
 GENERATE       : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
