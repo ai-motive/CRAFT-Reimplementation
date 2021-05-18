@@ -45,7 +45,7 @@ def extract_formula_positions_from_text(text):
             next_formula_ = is_formula(curr_ch, next_ch)
 
         if formula_: # 수식이면
-            if not((len(formula_chars) == 0) and (curr_ch is ' ')): # 빈칸 skip
+            if not((len(formula_chars) == 0) and (curr_ch == ' ')): # 빈칸 skip
                 formula_chars.append(curr_ch)
                 formula_idxs.append(i)
 
@@ -73,7 +73,8 @@ def is_formula(prev_ch, curr_ch):
     # 수식 = 영문 || 기호(원문자X) || 빈칸
     formula_ = (curr_ch in ALPHABETS) or \
                     (not (is_korean(curr_ch)) and (curr_ch not in NON_FORM_SYMBOLS)) or \
-                        (curr_ch is ' ')
+                        (curr_ch == ' ')
+
     return formula_
 
 def strip_text_by_positions(text, positions):
