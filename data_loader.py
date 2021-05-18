@@ -602,7 +602,12 @@ class ICDAR2015(craft_base_dataset):
         words = []
         for line in lines:
             ori_box = line.strip().encode('utf-8').decode('utf-8-sig').split(',')
-            box = [int(ori_box[j]) for j in range(8)]
+            try:
+                box = [int(ori_box[j]) for j in range(8)]
+            except Exception as e:
+                print(e, ori_box)
+                continue
+
             word = ori_box[8:]
             word = ','.join(word)
             box = np.array(box, np.int32).reshape(4, 2)
