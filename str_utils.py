@@ -35,7 +35,7 @@ def extract_formula_positions_from_text(text):
 
     for i, (prev_ch, curr_ch, next_ch) in enumerate(get_prev_and_next(text)):
         # (한글+빈칸)
-        if is_korean(curr_ch) or (curr_ch == ' '):
+        if is_korean(curr_ch) or (curr_ch is ' '):
             korean_chars.append(curr_ch)
         else:
             korean_chars = []
@@ -74,6 +74,7 @@ def is_formula(prev_ch, curr_ch):
     formula_ = (curr_ch in ALPHABETS) or \
                     (not (is_korean(curr_ch)) and (curr_ch not in NON_FORM_SYMBOLS)) or \
                         (curr_ch == ' ')
+
     return formula_
 
 def strip_text_by_positions(text, positions):
