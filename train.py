@@ -4,7 +4,6 @@ import torch
 import torch.utils.data as data
 import argparse
 import time
-import general_utils as utils
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 from data_loader import ICDAR2015
@@ -13,6 +12,8 @@ from collections import OrderedDict
 from craft import CRAFT
 from torch.autograd import Variable
 from datetime import datetime
+from python_utils.common import general as cg
+from python_utils.image import general as ig
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
@@ -85,21 +86,21 @@ def adjust_learning_rate(optimizer, gamma, step, learning_rate):
 
 def main(args, logger=None):
     # Load image & gt files
-    img_fnames = utils.get_filenames(args.img_path, extensions=utils.IMG_EXTENSIONS)
-    gt_fnames = utils.get_filenames(args.gt_path, extensions=utils.TEXT_EXTENSIONS)
-    img_dir, _, _ = utils.split_fname(img_fnames[0])
-    gt_dir, _, _ = utils.split_fname(gt_fnames[0])
-    train_dir, img_dir_name, _ = utils.split_fname(img_dir)
-    _, gt_dir_name, _ = utils.split_fname(gt_dir)
+    img_fnames = cg.get_filenames(args.img_path, extensions=cg.IMG_EXTENSIONS)
+    gt_fnames = cg.get_filenames(args.gt_path, extensions=ig.TEXT_EXTENSIONS)
+    img_dir, _, _ = cg.split_fname(img_fnames[0])
+    gt_dir, _, _ = cg.split_fname(gt_fnames[0])
+    train_dir, img_dir_name, _ = cg.split_fname(img_dir)
+    _, gt_dir_name, _ = cg.split_fname(gt_dir)
     logger.info(" [TRAIN] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
     # Load model info.
-    model_dir, model_name, model_ext = utils.split_fname(args.pretrain_model_path)
+    model_dir, model_name, model_ext = cg.split_fname(args.pretrain_model_path)
     parent_model_dir = os.path.abspath(os.path.join(model_dir, os.pardir))
 
     model_date = datetime.today().strftime("%y%m%d")
     rst_model_dir = os.path.join(parent_model_dir, model_date)
-    utils.folder_exists(rst_model_dir, create_=True)
+    cg.folder_exists(rst_model_dir, create_=True)
 
     device = torch.device('cuda' if (torch.cuda.is_available() and args.cuda) else 'cpu')
     net = CRAFT(pretrained=False)
@@ -207,14 +208,14 @@ def main(args, logger=None):
             compare_loss = loss_avg.val()
             torch.save(net.module.state_dict(),
                        os.path.join(rst_model_dir, 'lower_loss.pth'))
-            utils.save_dict_to_json_file(rst_dict, os.path.join(rst_model_dir, 'lower_loss.json'))
+            cg.save_dict_to_json_file(rst_dict, os.path.join(rst_model_dir, 'lower_loss.json'))
             logger.info(" [TRAIN] # Saved better model to : {}".format(os.path.join(rst_model_dir, 'lower_loss.pth')))
 
         # Epoch이 valid_epoch 될때마다 저장 (default : 50)
         if epoch % args.valid_epoch == 0 and epoch != 0:
             logger.info(" [TRAIN] # Saving state, iter: {}".format(epoch))
             torch.save(net.module.state_dict(), rst_model_path)
-            utils.save_dict_to_json_file(rst_dict, rst_json_path)
+            cg.save_dict_to_json_file(rst_dict, rst_json_path)
             logger.info(" [TRAIN] # Saved model to : {}".format(rst_model_path))
 
         logger.info(" [TRAIN] # epoch {}:({}/{}) : training average loss : {:.3f}".format(epoch, index, len(real_data_loader), float(loss_avg.val())))

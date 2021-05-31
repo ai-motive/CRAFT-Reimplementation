@@ -2,8 +2,8 @@
 import os
 import numpy as np
 import cv2
-import imgproc
-import general_utils as utils
+from python_utils.common import general as cg
+
 
 # borrowed from https://github.com/lengstrom/fast-style-transfer/blob/master/src/utils.py
 def get_files(img_dir):
@@ -106,7 +106,7 @@ def saveResult15(img_file, boxes, dirname='./result/', verticals=None, texts=Non
     for dir in [dirname]:
         if not os.path.isdir(dir):
             os.mkdir(dir)
-    if not(utils.file_exists(gt_file)):
+    if not(cg.file_exists(gt_file)):
         with open(gt_file, 'w') as f:
             for i, box in enumerate(boxes):
                 poly = np.array(box).astype(np.int32).reshape((-1))
