@@ -10,18 +10,17 @@ import train, test
 import subprocess
 from datetime import datetime
 from sklearn.model_selection import train_test_split
+from PIL import ImageFont, ImageDraw, Image
 from easyocr.detection import get_detector, get_textbox
 from easyocr.utils import group_text_box
 from python_utils.common import general as cg, logger as cl, string as cs
 from python_utils.image import general as ig, process as ip, coordinates as ic
 from python_utils.json import general as jg
 
-
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
-
-MARGIN = '\t'*20
+MARGIN = '\t' * 20
 
 
 def load_craft_parameters(ini):
@@ -80,7 +79,9 @@ def main_generate(ini, common_info, logger=None):
             texts.append(text)
 
         file_utils.saveResult(img_file=img_core_name, img=img, boxes=bboxes, texts=texts, dirname=vars['gt_path'])
-        logger.info(" [GENERATE-OCR] # Generated to {} ({:d}/{:d})".format(vars['gt_path']+img_core_name+'.txt', (idx + 1), len(img_fnames)))
+        logger.info(
+            " [GENERATE-OCR] # Generated to {} ({:d}/{:d})".format(vars['gt_path'] + img_core_name + '.txt', (idx + 1),
+                                                                   len(img_fnames)))
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -91,7 +92,7 @@ def main_split(ini, common_info, logger=None):
     vars = {}
     for key, val in ini.items():
         vars[key] = cs.replace_string_from_dict(val, common_info)
-        
+
     cg.folder_exists(vars['img_path'], create_=False)
     cg.folder_exists(vars['gt_path'], create_=False)
     if cg.folder_exists(vars['train_path'], create_=False):
@@ -109,17 +110,20 @@ def main_split(ini, common_info, logger=None):
         # shutil.rmtree(vars['test_path'])
 
     train_ratio = float(vars['train_ratio'])
-    test_ratio = round(1.0-train_ratio, 2)
+    test_ratio = round(1.0 - train_ratio, 2)
 
     lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
     tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     gt_list = sorted(cg.get_filenames(vars['gt_path'], extensions=cg.TEXT_EXTENSIONS))
     train_gt_list, test_gt_list = train_test_split(gt_list, train_size=train_ratio, random_state=2000)
-    train_img_list, test_img_list = [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for gt_path in train_gt_list], \
-                                    [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for gt_path in test_gt_list]
+    train_img_list, test_img_list = [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for
+                                     gt_path in train_gt_list], \
+                                    [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for
+                                     gt_path in test_gt_list]
 
     train_img_path, test_img_path = os.path.join(vars['train_path'], 'img/'), os.path.join(vars['test_path'], 'img/')
-    train_gt_path, test_gt_path = os.path.join(vars['train_path'], tgt_dir+'/'), os.path.join(vars['test_path'], tgt_dir+'/')
+    train_gt_path, test_gt_path = os.path.join(vars['train_path'], tgt_dir + '/'), os.path.join(vars['test_path'],
+                                                                                                tgt_dir + '/')
     cg.folder_exists(train_img_path, create_=True), cg.folder_exists(test_img_path, create_=True)
     cg.folder_exists(train_gt_path, create_=True), cg.folder_exists(test_gt_path, create_=True)
 
@@ -152,7 +156,8 @@ def main_split(ini, common_info, logger=None):
             logger.info(" # Link img files {}\n{}->{}.".format(img_list[0], MARGIN, img_link_path))
 
     print(" # (train, test) = ({:d}, {:d}) -> {:d} % ".
-          format(len(train_gt_list), len(test_gt_list), int(float(len(train_gt_list))/float(len(train_gt_list)+len(test_gt_list))*100)))
+          format(len(train_gt_list), len(test_gt_list),
+                 int(float(len(train_gt_list)) / float(len(train_gt_list) + len(test_gt_list)) * 100)))
     return True
 
 
@@ -161,7 +166,7 @@ def main_merge(ini, common_info, logger=None):
     vars = {}
     for key, val in ini.items():
         vars[key] = cs.replace_string_from_dict(val, common_info)
-        
+
     cg.folder_exists(vars['total_dataset_path'], create_=True)
 
     datasets = [dataset for dataset in os.listdir(vars['dataset_path']) if dataset != 'total']
@@ -171,13 +176,19 @@ def main_merge(ini, common_info, logger=None):
     tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     if len(sort_datasets) != 0:
         for dir_name in sort_datasets:
-            src_train_path, src_test_path = os.path.join(vars['dataset_path'], dir_name, 'train'), os.path.join(vars['dataset_path'], dir_name, 'test')
-            src_train_img_path, src_train_gt_path = os.path.join(src_train_path, 'img/'), os.path.join(src_train_path, tgt_dir+'/')
-            src_test_img_path, src_test_gt_path = os.path.join(src_test_path, 'img/'), os.path.join(src_test_path, tgt_dir+'/')
+            src_train_path, src_test_path = os.path.join(vars['dataset_path'], dir_name, 'train'), os.path.join(
+                vars['dataset_path'], dir_name, 'test')
+            src_train_img_path, src_train_gt_path = os.path.join(src_train_path, 'img/'), os.path.join(src_train_path,
+                                                                                                       tgt_dir + '/')
+            src_test_img_path, src_test_gt_path = os.path.join(src_test_path, 'img/'), os.path.join(src_test_path,
+                                                                                                    tgt_dir + '/')
 
-            dst_train_path, dst_test_path = os.path.join(vars['total_dataset_path'], 'train'), os.path.join(vars['total_dataset_path'], 'test')
-            dst_train_img_path, dst_train_gt_path = os.path.join(dst_train_path, 'img/'), os.path.join(dst_train_path, tgt_dir+'/')
-            dst_test_img_path, dst_test_gt_path = os.path.join(dst_test_path, 'img/'), os.path.join(dst_test_path, tgt_dir+'/')
+            dst_train_path, dst_test_path = os.path.join(vars['total_dataset_path'], 'train'), os.path.join(
+                vars['total_dataset_path'], 'test')
+            dst_train_img_path, dst_train_gt_path = os.path.join(dst_train_path, 'img/'), os.path.join(dst_train_path,
+                                                                                                       tgt_dir + '/')
+            dst_test_img_path, dst_test_gt_path = os.path.join(dst_test_path, 'img/'), os.path.join(dst_test_path,
+                                                                                                    tgt_dir + '/')
 
             if cg.folder_exists(dst_train_img_path) and cg.folder_exists(dst_train_gt_path) and \
                     cg.folder_exists(dst_test_img_path) and cg.folder_exists(dst_test_gt_path):
@@ -214,9 +225,10 @@ def main_train(ini, common_info, logger=None):
     vars = {}
     for key, val in ini.items():
         vars[key] = cs.replace_string_from_dict(val, common_info)
-        
+
     cuda_ids = vars['cuda_ids'].split(',')
-    latest_model_dir = cg.get_model_dir(root_dir=vars['root_model_path'], model_file=vars['model_name'], version='latest')
+    latest_model_dir = cg.get_model_dir(root_dir=vars['root_model_path'], model_file=vars['model_name'],
+                                        version='latest')
     latest_model_path = os.path.join(latest_model_dir, vars['model_name'])
 
     train_args = [
@@ -243,7 +255,7 @@ def main_train(ini, common_info, logger=None):
 
 def main_test(ini, model_dir=None, logger=None):
     if not model_dir:
-        model_dir = max([os.path.join(ini['model_root_path'],d) for d in os.listdir(ini["model_root_path"])],
+        model_dir = max([os.path.join(ini['model_root_path'], d) for d in os.listdir(ini["model_root_path"])],
                         key=os.path.getmtime)
     else:
         model_dir = os.path.join(ini["model_root_path"], model_dir)
@@ -269,14 +281,16 @@ def main_split_textline(ini, common_info, logger=None):
         vars[key] = cs.replace_string_from_dict(val, common_info)
     img_mode = vars['img_mode']
     link_, border_, save_detect_box_img_, save_refine_box_img_ = \
-        cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['border_']), cs.string_to_boolean(vars['save_detect_box_img_']), cs.string_to_boolean(vars['save_refine_box_img_'])
+        cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['border_']), cs.string_to_boolean(
+            vars['save_detect_box_img_']), cs.string_to_boolean(vars['save_refine_box_img_'])
 
     # Init. CRAFT
     gpu_ = cs.string_to_boolean(vars['cuda'])
     device = torch.device('cuda' if (torch.cuda.is_available() and gpu_) else 'cpu')
 
     ko_model_dir, math_model_dir = cg.get_model_dir(root_dir=vars['ko_model_path'], model_file=vars['ko_model_name']), \
-                                   cg.get_model_dir(root_dir=vars['math_model_path'], model_file=vars['math_model_name'])
+                                   cg.get_model_dir(root_dir=vars['math_model_path'],
+                                                    model_file=vars['math_model_name'])
     ko_detector = get_detector(os.path.join(ko_model_dir, vars['ko_model_name']), device, quantize=False)
     math_detector = get_detector(os.path.join(math_model_dir, vars['math_model_name']), device, quantize=False)
 
@@ -306,7 +320,7 @@ def main_split_textline(ini, common_info, logger=None):
         logger.info(" [SPLIT-TEXTLINE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
 
         for idx, img_fname in enumerate(img_fnames):
-            logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx+1), len(img_fnames)))
+            logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx + 1), len(img_fnames)))
             img = ig.imread(os.path.join(img_fname), color_fmt='RGB')
             draw_detect_img, draw_refine_img = img.copy(), img.copy()
 
@@ -360,7 +374,8 @@ def main_split_textline(ini, common_info, logger=None):
                     imgs = gt_crop_imgs
 
                 for input_box, input_img in zip(boxes, imgs):
-                    tgt_class = 'ko' if (detector is ko_detector) else ('math' if (detector is math_detector) else 'None')
+                    tgt_class = 'ko' if (detector is ko_detector) else (
+                        'math' if (detector is math_detector) else 'None')
 
                     # # Make border
                     border_margin = 0
@@ -368,18 +383,21 @@ def main_split_textline(ini, common_info, logger=None):
                         border_color = ig.WHITE
                         border_margin = 30
                         input_img = cv2.copyMakeBorder(input_img,
-                                                      border_margin, border_margin, border_margin, border_margin,
-                                                      cv2.BORDER_CONSTANT, value=border_color)
+                                                       border_margin, border_margin, border_margin, border_margin,
+                                                       cv2.BORDER_CONSTANT, value=border_color)
 
                     boxes = get_textbox(detector, input_img,
                                         canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
-                                        text_threshold=craft_params['text_threshold'], link_threshold=craft_params['link_threshold'],
+                                        text_threshold=craft_params['text_threshold'],
+                                        link_threshold=craft_params['link_threshold'],
                                         low_text=craft_params['low_text'], poly=False,
                                         device=device, optimal_num_chars=True)
 
                     if border_:
-                        boxes = [np.array([box[0]-border_margin, box[1]-border_margin, box[2]-border_margin, box[3]-border_margin,
-                                            box[4]-border_margin, box[5]-border_margin, box[6]-border_margin, box[7]-border_margin])  for box in boxes]
+                        boxes = [np.array([box[0] - border_margin, box[1] - border_margin, box[2] - border_margin,
+                                           box[3] - border_margin,
+                                           box[4] - border_margin, box[5] - border_margin, box[6] - border_margin,
+                                           box[7] - border_margin]) for box in boxes]
 
                     horizontal_list, _ = group_text_box(boxes, craft_params['slope_ths'],
                                                         craft_params['ycenter_ths'], craft_params['height_ths'],
@@ -394,8 +412,6 @@ def main_split_textline(ini, common_info, logger=None):
                         x_min, x_max, y_min, y_max = new_h_box
                         rect4 = ic.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
                         predicts.append([rect4, '', tgt_class])
-                        # crop_img = img[y_min:y_max, x_min:x_max]
-                        # utils.imshow(crop_img)
 
                         box = (x_min, y_min, x_max, y_max)
 
@@ -416,9 +432,9 @@ def main_split_textline(ini, common_info, logger=None):
                 ig.imwrite(draw_detect_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + img_bname))
 
             # Compare GT. & PRED.
-            refine_gts = refine_ground_truths_by_predict_values(gts, predicts) # test input : GTS, PREDS
+            refine_gts = refine_ground_truths_by_predict_values(gts, predicts)  # test input : GTS, PREDS
 
-            # Draw refined boxes
+            # Draw refined boxes & texts
             if save_refine_box_img_:
                 for rf_box, rf_text, rf_class in refine_gts:
                     rf_rect2 = ic.convert_rect4_to_rect2(rf_box)
@@ -430,21 +446,35 @@ def main_split_textline(ini, common_info, logger=None):
                     if rf_class == 'math':
                         box_color = ig.MAGENTA
 
+                    # Draw boxes
                     draw_refine_img = ip.draw_box_on_img(draw_refine_img, box, color=box_color, thickness=3)
+
+                    # Draw texts (for 한글)
+                    pil_img = Image.fromarray(draw_refine_img)
+                    draw = ImageDraw.Draw(pil_img)
+                    font = cg.KOR_FONT
+                    margin_x, margin_y = 10, 45
+                    draw.text(xy=((x_min + 1 + margin_x), (y_min + 1 + margin_y)),
+                              text=rf_text, font=font, fill=box_color)
+
+                    draw_refine_img = np.array(pil_img)
 
                 rst_dir_path = os.path.join(vars['rst_path'], rst_dir_name, 'refine_box')
                 cg.folder_exists(rst_dir_path, create_=True)
                 ig.imwrite(draw_refine_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + img_bname))
 
-            # # Insert refine_gts to json
-            # obj_id = objects[-1]['id'] + 1
-            # refine_json_data, refine_obj_id = update_json_from_results(json_data, obj_id,
-            #                                                            ['ko', 'math'], refine_gts)
-            #
-            # # Save refined json
-            # rst_ann_fname = ann_fname.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
-            # with open(rst_ann_fname, 'w', encoding='utf-8') as f:
-            #     json.dump(refine_json_data, f, ensure_ascii=False, indent=4)
+            # Insert refine_gts to json
+            if len(objects) > 0:
+                obj_id = objects[-1]['id'] + 1
+            else:
+                obj_id = 0
+            refine_json_data, refine_obj_id = update_json_from_results(json_data, obj_id,
+                                                                       ['ko', 'math'], refine_gts)
+
+            # Save refined json
+            rst_ann_fname = ann_fname.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
+            with open(rst_ann_fname, 'w', encoding='utf-8') as f:
+                json.dump(refine_json_data, f, ensure_ascii=False, indent=4)
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -483,7 +513,7 @@ def link_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, 
 def refine_ground_truths_by_predict_values(gts, preds):
     refine_gts = []
     for gt_idx, (gt_box, gt_text, gt_class) in enumerate(gts):
-        gt_rect2 = ic.convert_rect4_to_rect2(gt_box) # [min_x, max_x, min_y, max_y]
+        gt_rect2 = ic.convert_rect4_to_rect2(gt_box)  # [min_x, max_x, min_y, max_y]
         gt_min_x, gt_max_x, gt_min_y, gt_max_y = gt_rect2
 
         # 중심점으로 gt 내부에 있는 pred. 후보 영역 추출
@@ -492,7 +522,7 @@ def refine_ground_truths_by_predict_values(gts, preds):
             pred_box, pred_text, pred_class = pred
             pred_rect2 = ic.convert_rect4_to_rect2(pred_box)
             pred_min_x, pred_max_x, pred_min_y, pred_max_y = pred_rect2
-            pred_center_x, pred_center_y = (pred_min_x+pred_max_x)/2, (pred_min_y+pred_max_y)/2
+            pred_center_x, pred_center_y = (pred_min_x + pred_max_x) / 2, (pred_min_y + pred_max_y) / 2
 
             if (gt_min_x < pred_center_x < gt_max_x) and (gt_min_y < pred_center_y < gt_max_y):
                 cand_preds.append(pred)
@@ -505,8 +535,8 @@ def refine_ground_truths_by_predict_values(gts, preds):
             sort_pred_box, sort_pred_text, sort_pred_class = sort_pred
             sort_pred_rect2 = ic.convert_rect4_to_rect2(sort_pred_box)
             sort_min_x, sort_max_x, sort_min_y, sort_max_y = sort_pred_rect2
-            sort_center_x, sort_center_y = (sort_min_x + sort_max_x) / 2, (sort_min_y + sort_max_y) / 2
-            sort_area_size = (sort_max_x-sort_min_x)*(sort_max_y-sort_min_y)
+            _, sort_center_y = (sort_min_x + sort_max_x) / 2, (sort_min_y + sort_max_y) / 2
+            sort_area_size = (sort_max_x - sort_min_x) * (sort_max_y - sort_min_y)
             if len(sort_preds) > 1:
                 for j, ref_pred in reversed(list(enumerate(sort_preds[:i]))):
                     ref_pred_box, ref_pred_text, ref_pred_class = ref_pred
@@ -515,9 +545,9 @@ def refine_ground_truths_by_predict_values(gts, preds):
                     ref_area_size = (ref_max_x - ref_min_x) * (ref_max_y - ref_min_y)
 
                     # 두 박스의 넓이가 90% 이상 일치하거나 박스 4점이 모두 포함되면 제거
-                    if ((sort_area_size / ref_area_size) >= 0.9) and (abs(sort_min_x-ref_min_x) <= 10) or \
+                    if ((sort_area_size / ref_area_size) >= 0.9) and (abs(sort_min_x - ref_min_x) <= 10) or \
                             ((ref_min_x < sort_min_x < ref_max_x) and (ref_min_x < sort_max_x < ref_max_x) and
-                                (ref_min_y < sort_min_y < ref_max_y) and (ref_min_y < sort_max_y < ref_max_y)):
+                             (ref_min_y < sort_min_y < ref_max_y) and (ref_min_y < sort_max_y < ref_max_y)):
                         del sort_preds[i]
                         break
 
@@ -554,7 +584,7 @@ def refine_ground_truths_by_predict_values(gts, preds):
                         split_gts.append([rect4, '', remove_pred_class])
 
                     # 마지막 영역 처리
-                    elif k == len(remove_preds)-1:
+                    elif k == len(remove_preds) - 1:
                         min_x, min_y = remove_min_x, gt_min_y
                         max_x, max_y = gt_max_x, gt_max_y
                         rect4 = ic.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
@@ -577,29 +607,32 @@ def refine_ground_truths_by_predict_values(gts, preds):
                 if (len(gt_text) <= 1) and (curr_ch == ' ' or curr_ch == ''):
                     refine_gts[-1][1] += curr_ch
                     ch_pos += 1
-                    # refine_gts[-1][2] = 'ko'
                     break
 
                 # 첫번째 문자 처리
                 if ch_pos == 0:
+                    # 한글 이면
                     if cs.is_korean(curr_ch):
                         refine_gts[-1][1] += curr_ch
                         ch_pos += 1
-                        # refine_gts[-1][2] = 'ko'
-                    elif cs.is_korean(curr_ch) == False:
+
+                    # 수식 이면
+                    elif not cs.is_korean(curr_ch):
                         refine_gts[-1][1] += curr_ch
                         ch_pos += 1
-                        # refine_gts[-1][2] = 'math'
+
                 else:
                     # (한글+빈칸) and (prev_ch_class == curr_ch_class)
-                    if (cs.is_korean(prev_ch) and (curr_ch == ' ')) or ((prev_ch == ' ' or prev_ch == None) and cs.is_korean(curr_ch)) \
+                    if (cs.is_korean(prev_ch) and (curr_ch == ' ')) or (
+                            (prev_ch == ' ' or prev_ch is None) and cs.is_korean(curr_ch)) \
                             or (cs.is_korean(prev_ch) and cs.is_korean(curr_ch)):
                         refine_gts[-1][1] += curr_ch
                         ch_pos += 1
                         # refine_gts[-1][2] = 'ko'
 
                     # (수식+빈칸) and (prev_ch_class == curr_ch_class)
-                    elif (not(cs.is_korean(prev_ch)) and (curr_ch == ' ')) or ((prev_ch == ' ' or prev_ch == None) and not(cs.is_korean(curr_ch)))  \
+                    elif (not (cs.is_korean(prev_ch)) and (curr_ch == ' ')) or (
+                            (prev_ch == ' ' or prev_ch is None) and not (cs.is_korean(curr_ch))) \
                             or ((cs.is_korean(prev_ch) == False) and (cs.is_korean(curr_ch) == False)):
                         refine_gts[-1][1] += curr_ch
                         ch_pos += 1
@@ -607,9 +640,9 @@ def refine_ground_truths_by_predict_values(gts, preds):
 
                     # class가 바뀔때
                     curr_class = refine_gts[-1][2]
-                    if (curr_class == 'ko' and not(cs.is_korean(next_ch)) and (next_ch != ' ')) or \
+                    if (curr_class == 'ko' and not (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
                             (curr_class == 'math' and (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
-                                next_ch == None:
+                            next_ch == None:
                         break
 
     return refine_gts
@@ -648,18 +681,20 @@ def get_obj_data(obj_id, classTitle, box, value):
                                  id=obj_id, classId=classId,
                                  description=value, geometryType='rectangle',
                                  labelerLogin='freewheelin',
-                                 createdAt=f'{year}-{month}-{day}T{hour}:{minute}:{second}.271Z', updatedAt=f'{year}-{month}-{day}T{hour}:{minute}:{second}.271Z',
+                                 createdAt=f'{year}-{month}-{day}T{hour}:{minute}:{second}.271Z',
+                                 updatedAt=f'{year}-{month}-{day}T{hour}:{minute}:{second}.271Z',
                                  classTitle=classTitle,
                                  tags=[],
                                  points={
-                                     'exterior': [[box[0], box[2]],
-                                                  [box[1], box[3]]],
+                                     'exterior': [[int(box[0]), int(box[2])],
+                                                  [int(box[1]), int(box[3])]],
                                      'interior': [[]],
                                  })
     return update_obj
 
 
-def update_obj_data(obj_data, id, classId, description, geometryType, labelerLogin, createdAt, updatedAt, tags, classTitle, points):
+def update_obj_data(obj_data, id, classId, description, geometryType, labelerLogin, createdAt, updatedAt, tags,
+                    classTitle, points):
     obj_data['id'] = id
     obj_data['classId'] = classId
     obj_data['description'] = description
@@ -721,8 +756,8 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'TEXTLINE' # KO / MATH / TEXTLINE
-OP_MODE = 'SPLIT_TEXTLINE' # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
+DATASET_TYPE = 'TEXTLINE'  # KO / MATH / TEXTLINE
+OP_MODE = 'SPLIT_TEXTLINE'  # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
 [OP_MODE DESC.]
 GENERATE       : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
@@ -736,7 +771,6 @@ if DATASET_TYPE != 'TEXTLINE':
     INI_FNAME = _this_basename_ + '_{}'.format(DATASET_TYPE.lower()) + ".ini"
 else:
     INI_FNAME = _this_basename_ + ".ini"
-
 
 if __name__ == "__main__":
     if len(sys.argv) == 1:

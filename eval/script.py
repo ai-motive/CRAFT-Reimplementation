@@ -7,7 +7,8 @@ import zipfile
 import os
 import numpy as np
 import Polygon as plg
-import general_utils as utils
+from python_utils.common import general as cg
+
 def evaluation_imports():
     """
     evaluation_imports: Dictionary ( key = module name , value = alias  )  with python modules used in the evaluation. 
@@ -35,6 +36,7 @@ def default_evaluation_params():
         'CONFIDENCES': False,  # Detections must include confidence value. AP will be calculated
         'PER_SAMPLE_RESULTS': True  # Generate per sample results and produce data for visualization
     }
+
 
 def mathflat_evaluation_params():
     return {
@@ -366,10 +368,12 @@ def eval_dataset(est_folder, gt_folder, eval_folder, dataset_type='ic15'):
 
     rrc_evaluation_funcs.main_evaluation(params, evaluation_params, validate_data, evaluate_method) # default_eval_params = default_evaluation_params(mode='mathflat')
 
+
 def getresult(result_path):
     # rrc_evaluation_funcs.main_evaluation(None, default_evaluation_params, validate_data, evaluate_method)
     #eval_2015('../../test')
     eval_dataset(result_path)
+
 
 def compress_files(src_dir, dst_dir, zip_fname='temp.zip'):
     filenames = os.listdir(src_dir)
@@ -379,7 +383,7 @@ def compress_files(src_dir, dst_dir, zip_fname='temp.zip'):
         fpath = os.path.join(src_dir, filename)
         zip.write(fpath, filename)
     zip.close()
-    if utils.file_exists(zip_fpath):
+    if cg.file_exists(zip_fpath):
         return True
     else:
         return False

@@ -10,20 +10,16 @@ import time
 import argparse
 import cv2
 import numpy as np
-import json
-import zipfile
 import craft_utils
 import imgproc
 import file_utils
 import torch
-import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from skimage import io
 from torch.autograd import Variable
 from craft import CRAFT
 from collections import OrderedDict
-import general_utils as utils
 from eval.script import eval_dataset
+from python_utils.common import general as cg
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
@@ -114,9 +110,9 @@ def main(args, logger=None):
     est_folder = os.path.join(args.rst_path, 'est')
     mask_folder = os.path.join(args.rst_path, 'mask')
     eval_folder = os.path.join(args.rst_path, 'eval')
-    utils.folder_exists(est_folder, create_=True)
-    utils.folder_exists(mask_folder, create_=True)
-    utils.folder_exists(eval_folder, create_=True)
+    cg.folder_exists(est_folder, create_=True)
+    cg.folder_exists(mask_folder, create_=True)
+    cg.folder_exists(eval_folder, create_=True)
 
     for k, image_path in enumerate(image_list):
         print("Test image {:d}/{:d}: {:s}".format(k+1, len(image_list), image_path))
@@ -130,7 +126,7 @@ def main(args, logger=None):
         # save score text
         filename, file_ext = os.path.splitext(os.path.basename(image_path))
         mask_file = mask_folder + "/res_" + filename + '_mask.jpg'
-        if not(utils.file_exists(mask_file)):
+        if not(cg.file_exists(mask_file)):
             cv2.imwrite(mask_file, score_text)
 
         file_utils.saveResult15(image_path, bboxes, dirname=est_folder, mode='test')
