@@ -10,17 +10,20 @@ import train, test
 import subprocess
 from datetime import datetime
 from sklearn.model_selection import train_test_split
-from PIL import ImageFont, ImageDraw, Image
+from PIL import ImageDraw, Image
 from easyocr.detection import get_detector, get_textbox
 from easyocr.utils import group_text_box
 from python_utils.common import general as cg, logger as cl, string as cs
-from python_utils.image import general as ig, process as ip, coordinates as ic
+from python_utils.image import general as ig, process as ip, coordinates as ic, object
 from python_utils.json import general as jg
+import supervisely_lib as sly
+
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
 MARGIN = '\t' * 20
+TEXTLINE = 'textline'
 
 
 def load_craft_parameters(ini):
@@ -281,8 +284,8 @@ def main_split_textline(ini, common_info, logger=None):
         vars[key] = cs.replace_string_from_dict(val, common_info)
     img_mode = vars['img_mode']
     link_, border_, save_detect_box_img_, save_refine_box_img_ = \
-        cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['border_']), cs.string_to_boolean(
-            vars['save_detect_box_img_']), cs.string_to_boolean(vars['save_refine_box_img_'])
+        cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['border_']), \
+        cs.string_to_boolean(vars['save_detect_box_img_']), cs.string_to_boolean(vars['save_refine_box_img_'])
 
     # Init. CRAFT
     gpu_ = cs.string_to_boolean(vars['cuda'])
@@ -297,130 +300,96 @@ def main_split_textline(ini, common_info, logger=None):
     easyocr_ini = cg.get_ini_parameters(os.path.join(_this_folder_, vars['ocr_ini_fname']))
     craft_params = load_craft_parameters(easyocr_ini['CRAFT'])
 
-    datasets = [dataset for dataset in os.listdir(vars['textline_dataset_path']) if dataset != 'total']
-    sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
+    project = sly.Project(directory=vars['textline_dataset_path'], mode=sly.OpenMode.READ)
 
     # Preprocess datasets
     if link_:
         link_datasets(src_dir_path=vars['textline_dataset_path'], dst_dir_path=vars['refine_dataset_path'],
-                      dir_names=sort_datasets, except_dir_names=except_dir_names, tgt_dir_name='img/', logger=logger)
+                      dir_names=project.datasets.keys(), except_dir_names=except_dir_names, tgt_dir_name='img/', logger=logger)
 
     # Load and split textlines
-    for dir_name in sort_datasets:
-        if dir_name in except_dir_names:
-            logger.info(" # {} has already been split. ".format(dir_name))
+    for dataset in project:
+        sly.logger.info('Processing dataset: {}/{}'.format(project.name, dataset.name))
+
+        if dataset.name in except_dir_names:
+            logger.info(" # {} has already been split. ".format(dataset.name))
             continue
 
-        img_path = os.path.join(vars['textline_dataset_path'], dir_name, 'img/')
-        ann_path = os.path.join(vars['textline_dataset_path'], dir_name, 'ann/')
+        for item_idx, item_name in enumerate(dataset):
+            item_paths = dataset.get_item_paths(item_name)
+            ann, json_data = sly.Annotation.load_json_file(item_paths.ann_path, project.meta)
 
-        img_fnames = sorted(cg.get_filenames(img_path, extensions=ig.IMG_EXTENSIONS))
-        ann_fnames = sorted(cg.get_filenames(ann_path, extensions=jg.META_EXTENSION))
 
-        logger.info(" [SPLIT-TEXTLINE] # Total file number to be processed: {:d}.".format(len(img_fnames)))
+            raw_img = sly.image.read(item_paths.img_path)
+            draw_detect_img, draw_refine_img = raw_img.copy(), raw_img.copy()
 
-        for idx, img_fname in enumerate(img_fnames):
-            logger.info(" [SPLIT-TEXTLINE] # Processing {} ({:d}/{:d})".format(img_fname, (idx + 1), len(img_fnames)))
-            img = ig.imread(os.path.join(img_fname), color_fmt='RGB')
-            draw_detect_img, draw_refine_img = img.copy(), img.copy()
+            # Draw textline box
+            for label in ann.labels:
+                if label.obj_class.name == TEXTLINE:
+                    label.geometry.draw_contour(draw_detect_img, color=label.obj_class.color, config=label.obj_class.geometry_config, thickness=3)
+                    label.geometry.draw_contour(draw_refine_img, color=label.obj_class.color, config=label.obj_class.geometry_config, thickness=3)
 
-            # Load json
-            img_bname = os.path.basename(img_fname)
-            ann_fname = ann_fnames[idx]
-            ann_bname = os.path.basename(ann_fname)
-            if ann_bname.replace('.json', '') == img_bname:
-                with open(os.path.join(ann_fname)) as json_file:
-                    json_data = json.load(json_file)
-                    objects = json_data['objects']
-                    # pprint.pprint(objects)
+            draw_detect_img = ((draw_detect_img.astype(np.uint16) + raw_img.astype(np.uint16)) / 2).astype(np.uint8)
+            draw_refine_img = ((draw_refine_img.astype(np.uint16) + raw_img.astype(np.uint16)) / 2).astype(np.uint8)
 
-            # Get ground truths
-            gts = []
-            gt_crop_boxes, gt_crop_imgs = [], []
-            for idx, obj in reversed(list(enumerate(objects))):
-                class_name = obj['classTitle']
-                if (class_name != common_info['tgt_class']):
+            # Get textline ground truths
+            gt_objs = []
+            for idx, label in reversed(list(enumerate(ann.labels))):
+                if label.obj_class.name != TEXTLINE:
                     continue
 
-                [x1, y1], [x2, y2] = obj['points']['exterior']
-                text = obj['description']
+                # Remove textline object
+                del ann.labels[idx]
 
-                # Remove textline objects
-                del objects[idx]
-
-                x_min, y_min, x_max, y_max = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
-                if x_max - x_min <= 0 or y_max - y_min <= 0:
+                if (label.geometry.right - label.geometry.left) <= 0 or (label.geometry.bottom - label.geometry.top) <= 0:
                     continue
 
-                rect2 = [x_min, x_max, y_min, y_max]
-                rect4 = ic.convert_rect2_to_rect4(rect2)
-                gts.append([rect4, text, class_name])
-                gt_crop_boxes.append(rect2)
-                gt_crop_imgs.append(img[y_min:y_max, x_min:x_max])
-
-                box = [x_min, y_min, x_max, y_max]
-                draw_detect_img = ip.draw_box_on_img(draw_detect_img, box, color=ig.BLUE)
-                draw_refine_img = ip.draw_box_on_img(draw_refine_img, box, color=ig.BLUE)
+                gt_box = ic.Box(box=[[label.geometry.left, label.geometry.top], [label.geometry.right, label.geometry.bottom]])
+                gt_obj = object.Object(name=TEXTLINE, box_obj=gt_box, description=label.description)
+                gt_objs.append(gt_obj)
 
             # Get predict results
-            predicts = []
+            pred_objs = []
             for detector in [ko_detector, math_detector]:
-                if img_mode == 'normal':
-                    boxes = [[-1, -1, -1, -1]]
-                    imgs = [img]
+                tgt_class = 'ko' if (detector is ko_detector) else ('math' if (detector is math_detector) else 'None')
 
-                elif img_mode == 'crop':
-                    boxes = gt_crop_boxes
-                    imgs = gt_crop_imgs
+                # # Make border
+                border_margin = 0
+                if border_:
+                    border_color = ig.WHITE
+                    border_margin = 30
+                    raw_img = cv2.copyMakeBorder(raw_img,
+                                                   border_margin, border_margin, border_margin, border_margin,
+                                                   cv2.BORDER_CONSTANT, value=border_color)
 
-                for input_box, input_img in zip(boxes, imgs):
-                    tgt_class = 'ko' if (detector is ko_detector) else (
-                        'math' if (detector is math_detector) else 'None')
+                boxes = get_textbox(detector, raw_img,
+                                    canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
+                                    text_threshold=craft_params['text_threshold'],
+                                    link_threshold=craft_params['link_threshold'],
+                                    low_text=craft_params['low_text'], poly=False,
+                                    device=device, optimal_num_chars=True)
 
-                    # # Make border
-                    border_margin = 0
-                    if border_:
-                        border_color = ig.WHITE
-                        border_margin = 30
-                        input_img = cv2.copyMakeBorder(input_img,
-                                                       border_margin, border_margin, border_margin, border_margin,
-                                                       cv2.BORDER_CONSTANT, value=border_color)
+                if border_:
+                    boxes = [np.array([box[0] - border_margin, box[1] - border_margin, box[2] - border_margin,
+                                       box[3] - border_margin,
+                                       box[4] - border_margin, box[5] - border_margin, box[6] - border_margin,
+                                       box[7] - border_margin]) for box in boxes]
 
-                    boxes = get_textbox(detector, input_img,
-                                        canvas_size=craft_params['canvas_size'], mag_ratio=craft_params['mag_ratio'],
-                                        text_threshold=craft_params['text_threshold'],
-                                        link_threshold=craft_params['link_threshold'],
-                                        low_text=craft_params['low_text'], poly=False,
-                                        device=device, optimal_num_chars=True)
+                horizontal_list, _ = group_text_box(boxes, craft_params['slope_ths'],
+                                                    craft_params['ycenter_ths'], craft_params['height_ths'],
+                                                    craft_params['width_ths'], craft_params['add_margin'])
 
-                    if border_:
-                        boxes = [np.array([box[0] - border_margin, box[1] - border_margin, box[2] - border_margin,
-                                           box[3] - border_margin,
-                                           box[4] - border_margin, box[5] - border_margin, box[6] - border_margin,
-                                           box[7] - border_margin]) for box in boxes]
+                for h_box in horizontal_list:
+                    pred_box = ic.Box(box=[[h_box[0], h_box[2]], [h_box[1], h_box[3]]])
+                    pred_obj = object.Object(name=tgt_class, box_obj=pred_box, description='')
+                    pred_objs.append(pred_obj)
 
-                    horizontal_list, _ = group_text_box(boxes, craft_params['slope_ths'],
-                                                        craft_params['ycenter_ths'], craft_params['height_ths'],
-                                                        craft_params['width_ths'], craft_params['add_margin'])
+                    if tgt_class == 'ko':
+                        box_color = ig.BROWN
+                    if tgt_class == 'math':
+                        box_color = ig.MAGENTA
 
-                    for h_box in horizontal_list:
-                        if input_box[0] == -1:
-                            new_h_box = h_box
-                        else:
-                            new_h_box = ic.calc_global_box_pos_in_box(input_box, h_box)
-
-                        x_min, x_max, y_min, y_max = new_h_box
-                        rect4 = ic.convert_rect2_to_rect4([x_min, x_max, y_min, y_max])
-                        predicts.append([rect4, '', tgt_class])
-
-                        box = (x_min, y_min, x_max, y_max)
-
-                        if tgt_class == 'ko':
-                            box_color = ig.BROWN
-                        if tgt_class == 'math':
-                            box_color = ig.MAGENTA
-
-                        draw_detect_img = ip.draw_box_on_img(draw_detect_img, box, color=box_color)
+                    draw_detect_img = ip.draw_box_on_img(draw_detect_img, pred_box.flat_box, color=box_color, thickness=2)
 
             # Save result image
             ko_model_epoch, math_model_epoch = vars['ko_model_name'].split('_')[-1].replace('.pth', ''), \
@@ -429,14 +398,14 @@ def main_split_textline(ini, common_info, logger=None):
             rst_dir_path = os.path.join(vars['rst_path'], rst_dir_name, 'draw_box')
             if save_detect_box_img_:
                 cg.folder_exists(rst_dir_path, create_=True)
-                ig.imwrite(draw_detect_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + img_bname))
+                ig.imwrite(draw_detect_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + item_name))
 
             # Compare GT. & PRED.
-            refine_gts = refine_ground_truths_by_predict_values(gts, predicts)  # test input : GTS, PREDS
+            refine_gts = refine_ground_truths_by_predict_values(gt_objs, pred_objs)  # test input : GTS, PREDS
 
             # Draw refined boxes & texts
             if save_refine_box_img_:
-                for rf_box, rf_text, rf_class in refine_gts:
+                for (rf_box, rf_text, rf_class) in refine_gts:
                     rf_rect2 = ic.convert_rect4_to_rect2(rf_box)
                     x_min, x_max, y_min, y_max = rf_rect2
                     box = (x_min, y_min, x_max, y_max)
@@ -461,20 +430,22 @@ def main_split_textline(ini, common_info, logger=None):
 
                 rst_dir_path = os.path.join(vars['rst_path'], rst_dir_name, 'refine_box')
                 cg.folder_exists(rst_dir_path, create_=True)
-                ig.imwrite(draw_refine_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + img_bname))
+                ig.imwrite(draw_refine_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + item_name))
 
             # Insert refine_gts to json
-            if len(objects) > 0:
-                obj_id = objects[-1]['id'] + 1
+            if len(ann.labels) > 0:
+                obj_id = ann.labels[-1].geometry.sly_id + 1
             else:
                 obj_id = 0
             refine_json_data, refine_obj_id = update_json_from_results(json_data, obj_id,
                                                                        ['ko', 'math'], refine_gts)
 
             # Save refined json
-            rst_ann_fname = ann_fname.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
+            rst_ann_fname = item_paths.ann_path.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
             with open(rst_ann_fname, 'w', encoding='utf-8') as f:
                 json.dump(refine_json_data, f, ensure_ascii=False, indent=4)
+
+            sly.logger.info('[{}/{}] Refined json path : {}'.format(item_idx + 1, len(dataset), item_paths.ann_path))
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
@@ -510,99 +481,79 @@ def link_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, 
         logger.info(" [SPLIT-TEXTLINE] # Sorted dataset is empty !!!")
 
 
-def refine_ground_truths_by_predict_values(gts, preds):
+def refine_ground_truths_by_predict_values(gt_objs, pred_objs):
     refine_gts = []
-    for gt_idx, (gt_box, gt_text, gt_class) in enumerate(gts):
-        gt_rect2 = ic.convert_rect4_to_rect2(gt_box)  # [min_x, max_x, min_y, max_y]
-        gt_min_x, gt_max_x, gt_min_y, gt_max_y = gt_rect2
+    for gt_idx, gt_obj in enumerate(gt_objs):
+        gt_box = gt_obj.Box
 
         # 중심점으로 gt 내부에 있는 pred. 후보 영역 추출
-        cand_preds = []
-        for pred in preds:
-            pred_box, pred_text, pred_class = pred
-            pred_rect2 = ic.convert_rect4_to_rect2(pred_box)
-            pred_min_x, pred_max_x, pred_min_y, pred_max_y = pred_rect2
-            pred_center_x, pred_center_y = (pred_min_x + pred_max_x) / 2, (pred_min_y + pred_max_y) / 2
+        cand_objs = []
+        for pred_obj in pred_objs:
+            pred_box = pred_obj.Box
+            pred_center_x, pred_center_y = (pred_box.x1 + pred_box.x2) / 2, (pred_box.y1 + pred_box.y2) / 2
 
-            if (gt_min_x < pred_center_x < gt_max_x) and (gt_min_y < pred_center_y < gt_max_y):
-                cand_preds.append(pred)
+            if (gt_box.x1 < pred_center_x < gt_box.x2) and (gt_box.y1 < pred_center_y < gt_box.y2):
+                cand_objs.append(pred_obj)
 
         # (x, y) 좌표를 기반으로 sorting
-        sort_preds = sorted(cand_preds, key=lambda x: (x[0][0], x[0][1]))
+        sort_objs = sorted(cand_objs, key=lambda x: (x.Box.box[0][0], x.Box.box[0][1]))
 
         # 박스 좌표 및 사이즈로 중복 or 포함된 preds. 박스 제거
-        for i, sort_pred in reversed(list(enumerate(sort_preds))):
-            sort_pred_box, sort_pred_text, sort_pred_class = sort_pred
-            sort_pred_rect2 = ic.convert_rect4_to_rect2(sort_pred_box)
-            sort_min_x, sort_max_x, sort_min_y, sort_max_y = sort_pred_rect2
-            _, sort_center_y = (sort_min_x + sort_max_x) / 2, (sort_min_y + sort_max_y) / 2
-            sort_area_size = (sort_max_x - sort_min_x) * (sort_max_y - sort_min_y)
-            if len(sort_preds) > 1:
-                for j, ref_pred in reversed(list(enumerate(sort_preds[:i]))):
-                    ref_pred_box, ref_pred_text, ref_pred_class = ref_pred
-                    ref_pred_rect2 = ic.convert_rect4_to_rect2(ref_pred_box)
-                    ref_min_x, ref_max_x, ref_min_y, ref_max_y = ref_pred_rect2
-                    ref_area_size = (ref_max_x - ref_min_x) * (ref_max_y - ref_min_y)
+        for i, sort_obj in reversed(list(enumerate(sort_objs))):
+            sort_box = sort_obj.Box
+            _, sort_center_y = (sort_box.x1 + sort_box.x2) / 2, (sort_box.y1 + sort_box.y2) / 2
+            sort_box_size = (sort_box.x2 - sort_box.x1) * (sort_box.y2 - sort_box.y1)
+            if len(sort_objs) > 1:
+                for j, ref_obj in reversed(list(enumerate(sort_objs[:i]))):
+                    ref_box = ref_obj.Box
+                    ref_box_size = (ref_box.x2 - ref_box.x1) * (ref_box.y2 - ref_box.y1)
 
                     # 두 박스의 넓이가 90% 이상 일치하거나 박스 4점이 모두 포함되면 제거
-                    if ((sort_area_size / ref_area_size) >= 0.9) and (abs(sort_min_x - ref_min_x) <= 10) or \
-                            ((ref_min_x < sort_min_x < ref_max_x) and (ref_min_x < sort_max_x < ref_max_x) and
-                             (ref_min_y < sort_min_y < ref_max_y) and (ref_min_y < sort_max_y < ref_max_y)):
-                        del sort_preds[i]
+                    if ((sort_box_size / ref_box_size) >= 0.9) and (abs(sort_box.x1 - ref_box.x1) <= 10) or \
+                            ((ref_box.x1 < sort_box.x1 < ref_box.x2) and (ref_box.x1 < sort_box.x2 < ref_box.x2) and
+                             (ref_box.y1 < sort_box.y1 < ref_box.y2) and (ref_box.y1 < sort_box.y2 < ref_box.y2)):
+                        del sort_objs[i]
                         break
 
-        remove_preds = sort_preds
+        remove_objs = sort_objs
 
         split_gts = []
         # 예측 값이 없는 경우
-        if len(remove_preds) == 0:
-            min_x, min_y = gt_min_x, gt_min_y
-            max_x, max_y = gt_max_x, gt_max_y
-            rect4 = ic.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
-            split_gts.append([rect4, '', 'math'])
+        if len(remove_objs) == 0:
+            split_gts.append([gt_box.rect4, '', 'math'])
         else:
             # Create refined gts
-            for k, remove_pred in enumerate(remove_preds):
-                remove_pred_box, remove_pred_text, remove_pred_class = remove_pred
-                remove_pred_rect2 = ic.convert_rect4_to_rect2(remove_pred_box)
-                remove_min_x, remove_max_x, remove_min_y, remove_max_y = remove_pred_rect2
+            for k, remove_obj in enumerate(remove_objs):
+                remove_class, remove_box = remove_obj.name, remove_obj.Box
 
                 # 예측 개수를 기반으로 x, y값 조정
-                if len(remove_preds) == 1:
-                    min_x, min_y = gt_min_x, gt_min_y
-                    max_x, max_y = gt_max_x, gt_max_y
-                    rect4 = ic.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
-                    split_gts.append([rect4, '', remove_pred_class])
+                if len(remove_objs) == 1:
+                    split_gts.append([gt_box.rect4, '', remove_class])
 
                 # 예측 개수가 2개 이상 일때
                 else:
                     # 첫번째 영역 처리
                     if k == 0:
-                        min_x, min_y = gt_min_x, gt_min_y
-                        max_x, max_y = remove_max_x, gt_max_y
-                        rect4 = ic.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
-                        split_gts.append([rect4, '', remove_pred_class])
+                        rect4 = ic.convert_rect2_to_rect4([gt_box.x1, remove_box.x2, gt_box.y1, gt_box.y2])
+                        split_gts.append([rect4, '', remove_class])
 
                     # 마지막 영역 처리
-                    elif k == len(remove_preds) - 1:
-                        min_x, min_y = remove_min_x, gt_min_y
-                        max_x, max_y = gt_max_x, gt_max_y
-                        rect4 = ic.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
-                        split_gts.append([rect4, '', remove_pred_class])
+                    elif k == len(remove_objs) - 1:
+                        rect4 = ic.convert_rect2_to_rect4([remove_box.x1, gt_box.x2, gt_box.y1, gt_box.y2])
+                        split_gts.append([rect4, '', remove_class])
 
                     # 중간 영역 처리
                     else:
-                        min_x, min_y = remove_min_x, gt_min_y
-                        max_x, max_y = remove_max_x, gt_max_y
-                        rect4 = ic.convert_rect2_to_rect4([min_x, max_x, min_y, max_y])
-                        split_gts.append([rect4, '', remove_pred_class])
+                        rect4 = ic.convert_rect2_to_rect4([remove_box.x1, remove_box.x2, gt_box.y1, gt_box.y2])
+                        split_gts.append([rect4, '', remove_class])
 
         # pred_class를 기반으로 text filling
         ch_pos = 0
         for l, split_gt in enumerate(split_gts):
             split_gt_box, split_gt_text, split_gt_class = split_gt
             refine_gts.append([split_gt_box, '', split_gt_class])
-            # gt_text = gt_text[ch_pos:]
+
+            gt_text = gt_obj.description
             for m, (prev_ch, curr_ch, next_ch) in enumerate(cs.get_prev_and_next(gt_text[ch_pos:])):
                 if (len(gt_text) <= 1) and (curr_ch == ' ' or curr_ch == ''):
                     refine_gts[-1][1] += curr_ch
@@ -628,7 +579,6 @@ def refine_ground_truths_by_predict_values(gts, preds):
                             or (cs.is_korean(prev_ch) and cs.is_korean(curr_ch)):
                         refine_gts[-1][1] += curr_ch
                         ch_pos += 1
-                        # refine_gts[-1][2] = 'ko'
 
                     # (수식+빈칸) and (prev_ch_class == curr_ch_class)
                     elif (not (cs.is_korean(prev_ch)) and (curr_ch == ' ')) or (
@@ -636,7 +586,6 @@ def refine_ground_truths_by_predict_values(gts, preds):
                             or ((cs.is_korean(prev_ch) == False) and (cs.is_korean(curr_ch) == False)):
                         refine_gts[-1][1] += curr_ch
                         ch_pos += 1
-                        # refine_gts[-1][2] = 'math'
 
                     # class가 바뀔때
                     curr_class = refine_gts[-1][2]

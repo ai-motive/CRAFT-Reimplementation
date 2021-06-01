@@ -1,4 +1,25 @@
 import numpy as np
+from itertools import chain
+
+
+class Box:
+    def __init__(self, box):
+        """
+
+        Args:
+            box : [[x1, y1], [x2, y2]]
+        """
+        self.box = box
+
+        # flat_box = [x1, y1, x2, y2]
+        self.flat_box = list(chain.from_iterable(box))
+        self.x1, self.y1, self.x2, self.y2 = box[0][0], box[0][1], box[1][0], box[1][1]
+
+        # rect2 = [x1, x2, y1, y2]
+        self.rect2 = [box[0][0], box[1][0], box[0][1], box[1][1]]
+
+        #  rect4 = [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+        self.rect4 = convert_rect2_to_rect4([box[0][0], box[1][0], box[0][1], box[1][1]])
 
 
 def fit_line(p1, p2):
