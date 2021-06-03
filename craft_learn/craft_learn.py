@@ -23,7 +23,9 @@ _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
 MARGIN = '\t' * 20
-TEXTLINE = 'textline'
+KO, MATH, KO_MATH, TEXTLINE = 'KO', 'MATH', 'KO_MATH', 'TEXTLINE'  # DATASET_TYPE
+PREPROCESS_ALL, GENERATE, SPLIT, MERGE, TRAIN, TEST, TRAIN_TEST, SPLIT_TEXTLINE = \
+    'PREPROCESS_ALL', 'GENERATE', 'SPLIT', 'MERGE', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'
 
 
 def load_craft_parameters(ini):
@@ -68,7 +70,7 @@ def main_generate(ini, common_info, logger=None):
         texts = []
         for obj in objects:
             class_name = obj['classTitle']
-            if class_name != DATASET_TYPE.lower():
+            if class_name != common_info['dataset_type'].lower():
                 continue
 
             [x1, y1], [x2, y2] = obj['points']['exterior']
@@ -86,7 +88,7 @@ def main_generate(ini, common_info, logger=None):
             " [GENERATE-OCR] # Generated to {} ({:d}/{:d})".format(vars['gt_path'] + img_core_name + '.txt', (idx + 1),
                                                                    len(img_fnames)))
 
-    logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
+    logger.info(" # {} in {} mode finished.".format(_this_basename_, GENERATE))
     return True
 
 
@@ -98,24 +100,13 @@ def main_split(ini, common_info, logger=None):
 
     cg.folder_exists(vars['img_path'], create_=False)
     cg.folder_exists(vars['gt_path'], create_=False)
-    if cg.folder_exists(vars['train_path'], create_=False):
-        print(" @ Warning: train dataset path, {}, already exists".format(vars["train_path"]))
-        ans = input(" % Proceed (y/n) ? ")
-        if ans.lower() != 'y':
-            sys.exit()
-        # shutil.rmtree(vars['train_path'])
-
-    if cg.folder_exists(vars['test_path'], create_=False):
-        print(" @ Warning: test dataset path, {}, already exists".format(vars["test_path"]))
-        ans = input(" % Proceed (y/n) ? ")
-        if ans.lower() != 'y':
-            sys.exit()
-        # shutil.rmtree(vars['test_path'])
+    cg.folder_exists(vars['train_path'], create_=False)
+    cg.folder_exists(vars['test_path'], create_=False)
 
     train_ratio = float(vars['train_ratio'])
     test_ratio = round(1.0 - train_ratio, 2)
 
-    lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
+    lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != 'TEXTLINE' else ''
     if lower_dataset_type:
         tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     else:
@@ -177,7 +168,7 @@ def main_merge(ini, common_info, logger=None):
     datasets = [dataset for dataset in os.listdir(vars['dataset_path']) if dataset != 'total']
     sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
 
-    lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
+    lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != 'TEXTLINE' else ''
     if lower_dataset_type:
         tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     else:
@@ -330,7 +321,7 @@ def main_split_textline(ini, common_info, logger=None):
 
             # Draw textline box
             for label in ann.labels:
-                if label.obj_class.name == TEXTLINE:
+                if label.obj_class.name == TEXTLINE.lower():
                     label.geometry.draw_contour(draw_detect_img, color=label.obj_class.color, config=label.obj_class.geometry_config, thickness=3)
                     label.geometry.draw_contour(draw_refine_img, color=label.obj_class.color, config=label.obj_class.geometry_config, thickness=3)
 
@@ -340,7 +331,7 @@ def main_split_textline(ini, common_info, logger=None):
             # Get textline ground truths
             gt_objs = []
             for idx, label in reversed(list(enumerate(ann.labels))):
-                if label.obj_class.name != TEXTLINE:
+                if label.obj_class.name != TEXTLINE.lower():
                     continue
 
                 # Remove textline object
@@ -350,7 +341,7 @@ def main_split_textline(ini, common_info, logger=None):
                     continue
 
                 gt_box = ic.Box(box=[[label.geometry.left, label.geometry.top], [label.geometry.right, label.geometry.bottom]])
-                gt_obj = object.Object(name=TEXTLINE, box_obj=gt_box, description=label.description)
+                gt_obj = object.Object(name=TEXTLINE.lower(), box_obj=gt_box, description=label.description)
                 gt_objs.append(gt_obj)
 
             # Get predict results
@@ -672,21 +663,46 @@ def main(args):
     logger = cl.setup_logger_with_ini(ini['LOGGER'],
                                       logging_=args.logging_, console_=args.console_logging_)
 
-    if args.op_mode == 'GENERATE':
+    if args.op_mode == PREPROCESS_ALL:
+        # Init. local variables
+        vars = {}
+        for key, val in ini[PREPROCESS_ALL].items():
+            vars[key] = cs.replace_string_from_dict(val, common_info)
+
+        # Preprocess ko, math dataset
+        dataset_types = KO_MATH.split('_')
+        for dataset_type in dataset_types:
+            # Reload ini
+            ini = cg.get_ini_parameters(f'craft_learn_{dataset_type.lower()}.ini')
+            common_info = {}
+            for key, val in ini['COMMON'].items():
+                common_info[key] = val
+
+            # Run generate & split
+            tgt_dir_names = vars['tgt_dir_names'].replace(' ', '').split(',')
+            for tgt_dir_name in tgt_dir_names:
+                common_info['tgt_dir_name'] = tgt_dir_name
+                main_generate(ini[GENERATE], common_info, logger=logger)
+                main_split(ini[SPLIT], common_info, logger=logger)
+
+            # Run merge
+            main_merge(ini[MERGE], common_info, logger=logger)
+
+    elif args.op_mode == GENERATE:
         main_generate(ini[args.op_mode], common_info, logger=logger)
-    elif args.op_mode == 'SPLIT':
+    elif args.op_mode == SPLIT:
         main_split(ini[args.op_mode], common_info, logger=logger)
-    elif args.op_mode == 'MERGE':
+    elif args.op_mode == MERGE:
         main_merge(ini[args.op_mode], common_info, logger=logger)
-    elif args.op_mode == 'TRAIN':
+    elif args.op_mode == TRAIN:
         main_train(ini[args.op_mode], common_info, logger=logger)
-    elif args.op_mode == 'TEST':
+    elif args.op_mode == TEST:
         main_test(ini[args.op_mode], common_info, logger=logger)
-    elif args.op_mode == 'TRAIN_TEST':
-        ret, model_dir = main_train(ini['TRAIN'], common_info, logger=logger)
-        main_test(ini['TEST'], common_info, logger=logger)
+    elif args.op_mode == TRAIN_TEST:
+        ret, model_dir = main_train(ini[TRAIN], common_info, logger=logger)
+        main_test(ini[TEST], common_info, logger=logger)
         print(" # Trained model directory is {}".format(model_dir))
-    elif args.op_mode == 'SPLIT_TEXTLINE':
+    elif args.op_mode == SPLIT_TEXTLINE:
         main_split_textline(ini[args.op_mode], common_info, logger=logger)
     else:
         print(" @ Error: op_mode, {}, is incorrect.".format(args.op_mode))
@@ -696,8 +712,8 @@ def main(args):
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_type", required=True, choices=['TEXTLINE', 'KO', 'MATH'], help="dataset type")
-    parser.add_argument("--op_mode", required=True, choices=['GENERATE', 'MERGE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'], help="operation mode")
+    parser.add_argument("--dataset_type", required=True, choices=['TEXTLINE', 'KO', 'MATH', 'KO_MATH'], help="dataset type")
+    parser.add_argument("--op_mode", required=True, choices=['PREPROCESS_ALL', 'GENERATE', 'MERGE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'], help="operation mode")
     parser.add_argument("--ini_fname", required=True, help="System code ini filename")
     parser.add_argument("--model_dir", default="", help="Model directory")
 
@@ -710,8 +726,10 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'KO'  # KO / MATH / TEXTLINE
-OP_MODE = 'TRAIN'  # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
+DATASET_TYPE = 'KO'  # KO / MATH / KO_MATH / TEXTLINE
+OP_MODE = 'PREPROCESS_ALL'  # PREPROCESS_ALL
+                      # (GENERATE / SPLIT / MERGE)
+                      # TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
 [OP_MODE DESC.]
 GENERATE       : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
