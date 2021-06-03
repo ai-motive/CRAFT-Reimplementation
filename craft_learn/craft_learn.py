@@ -116,7 +116,10 @@ def main_split(ini, common_info, logger=None):
     test_ratio = round(1.0 - train_ratio, 2)
 
     lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
-    tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
+    if lower_dataset_type:
+        tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
+    else:
+        tgt_dir = 'craft_gt'
     gt_list = sorted(cg.get_filenames(vars['gt_path'], extensions=cg.TEXT_EXTENSIONS))
     train_gt_list, test_gt_list = train_test_split(gt_list, train_size=train_ratio, random_state=2000)
     train_img_list, test_img_list = [gt_path.replace(tgt_dir, 'img').replace('.txt', '.jpg').replace('gt_', '') for
@@ -125,8 +128,7 @@ def main_split(ini, common_info, logger=None):
                                      gt_path in test_gt_list]
 
     train_img_path, test_img_path = os.path.join(vars['train_path'], 'img/'), os.path.join(vars['test_path'], 'img/')
-    train_gt_path, test_gt_path = os.path.join(vars['train_path'], tgt_dir + '/'), os.path.join(vars['test_path'],
-                                                                                                tgt_dir + '/')
+    train_gt_path, test_gt_path = os.path.join(vars['train_path'], tgt_dir + '/'), os.path.join(vars['test_path'], tgt_dir + '/')
     cg.folder_exists(train_img_path, create_=True), cg.folder_exists(test_img_path, create_=True)
     cg.folder_exists(train_gt_path, create_=True), cg.folder_exists(test_gt_path, create_=True)
 
@@ -146,13 +148,13 @@ def main_split(ini, common_info, logger=None):
                 gt_link_path = test_gt_path
                 img_link_path = test_img_path
 
-            # link gt_path
+            # link gt files
             for gt_path in gt_list:
                 gt_sym_cmd = 'ln "{}" "{}"'.format(gt_path, gt_link_path)  # to all files
                 subprocess.call(gt_sym_cmd, shell=True)
             logger.info(" # Link gt files {}\n{}->{}.".format(gt_list[0], MARGIN, gt_link_path))
 
-            # link img_path
+            # link img files
             for img_path in img_list:
                 img_sym_cmd = 'ln "{}" "{}"'.format(img_path, img_link_path)  # to all files
                 subprocess.call(img_sym_cmd, shell=True)
@@ -176,7 +178,10 @@ def main_merge(ini, common_info, logger=None):
     sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
 
     lower_dataset_type = DATASET_TYPE.lower() if DATASET_TYPE != 'TEXTLINE' else ''
-    tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
+    if lower_dataset_type:
+        tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
+    else:
+        tgt_dir = 'craft_gt'
     if len(sort_datasets) != 0:
         for dir_name in sort_datasets:
             src_train_path, src_test_path = os.path.join(vars['dataset_path'], dir_name, 'train'), os.path.join(
@@ -474,9 +479,9 @@ def link_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, 
             dst_bnames = [os.path.basename(dst_fname) for dst_fname in dst_fnames]
 
             if any(src_bname not in dst_bnames for src_bname in src_bnames):
-                img_sym_cmd = 'ln "{}"* "{}"'.format(src_path, dst_path)  # to all files
-                subprocess.call(img_sym_cmd, shell=True)
-                logger.info(" # Link img files {}\n{}->\t{}.".format(src_path, MARGIN, dst_path))
+                sym_cmd = 'ln "{}"* "{}"'.format(src_path, dst_path)  # to all files
+                subprocess.call(sym_cmd, shell=True)
+                logger.info(" # Link {} files {}\n{}->\t{}.".format(tgt_dir_name.replace('/', ''), src_path, MARGIN, dst_path))
     else:
         logger.info(" [SPLIT-TEXTLINE] # Sorted dataset is empty !!!")
 
@@ -706,7 +711,7 @@ def parse_arguments(argv):
 
 SELF_TEST_ = True
 DATASET_TYPE = 'TEXTLINE'  # KO / MATH / TEXTLINE
-OP_MODE = 'SPLIT_TEXTLINE'  # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
+OP_MODE = 'MERGE'  # GENERATE / SPLIT / MERGE / TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
 [OP_MODE DESC.]
 GENERATE       : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
