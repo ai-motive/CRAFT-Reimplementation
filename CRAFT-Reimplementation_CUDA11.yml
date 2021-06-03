@@ -186,5 +186,7 @@ dependencies:
     - urllib3==1.26.5
     - websocket-client==1.0.1
     - werkzeug==2.0.1
+    - Polygon3
     - git+https://github.com/mathFLAT/python_utils.git
+    - git+https://github.com/ai-motive/supervisely.git
 prefix: /home/motive/anaconda3/envs/CRAFT-Reimplementation
