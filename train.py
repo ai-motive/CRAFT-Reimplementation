@@ -14,6 +14,7 @@ from torch.autograd import Variable
 from datetime import datetime
 from python_utils.common import general as cg
 from python_utils.image import general as ig
+from python_utils.json import general as jg
 
 
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
@@ -86,8 +87,8 @@ def adjust_learning_rate(optimizer, gamma, step, learning_rate):
 
 def main(args, logger=None):
     # Load image & gt files
-    img_fnames = cg.get_filenames(args.img_path, extensions=cg.IMG_EXTENSIONS)
-    gt_fnames = cg.get_filenames(args.gt_path, extensions=ig.TEXT_EXTENSIONS)
+    img_fnames = cg.get_filenames(args.img_path, extensions=ig.IMG_EXTENSIONS)
+    gt_fnames = cg.get_filenames(args.gt_path, extensions=cg.TEXT_EXTENSIONS)
     img_dir, _, _ = cg.split_fname(img_fnames[0])
     gt_dir, _, _ = cg.split_fname(gt_fnames[0])
     train_dir, img_dir_name, _ = cg.split_fname(img_dir)
