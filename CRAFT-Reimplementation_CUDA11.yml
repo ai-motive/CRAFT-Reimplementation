@@ -175,7 +175,6 @@ dependencies:
     - pyqtchart==5.12
     - pyqtwebengine==5.12.1
     - python-json-logger==0.1.11
-    - python-utils==1.1.19
     - pytz==2021.1
     - requests==2.25.1
     - requests-toolbelt==0.9.1
@@ -187,4 +186,5 @@ dependencies:
     - urllib3==1.26.5
     - websocket-client==1.0.1
     - werkzeug==2.0.1
+    - git+https://github.com/mathFLAT/python_utils.git
 prefix: /home/motive/anaconda3/envs/CRAFT-Reimplementation
