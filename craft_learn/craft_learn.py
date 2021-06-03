@@ -664,11 +664,6 @@ def main(args):
                                       logging_=args.logging_, console_=args.console_logging_)
 
     if args.op_mode == PREPROCESS_ALL:
-        # Init. local variables
-        vars = {}
-        for key, val in ini[PREPROCESS_ALL].items():
-            vars[key] = cs.replace_string_from_dict(val, common_info)
-
         # Preprocess ko, math dataset
         dataset_types = KO_MATH.split('_')
         for dataset_type in dataset_types:
@@ -677,6 +672,11 @@ def main(args):
             common_info = {}
             for key, val in ini['COMMON'].items():
                 common_info[key] = val
+
+            # Init. local variables
+            vars = {}
+            for key, val in ini[PREPROCESS_ALL].items():
+                vars[key] = cs.replace_string_from_dict(val, common_info)
 
             # Run generate & split
             tgt_dir_names = vars['tgt_dir_names'].replace(' ', '').split(',')
@@ -727,7 +727,7 @@ def parse_arguments(argv):
 
 SELF_TEST_ = True
 DATASET_TYPE = 'KO'  # KO / MATH / KO_MATH / TEXTLINE
-OP_MODE = 'PREPROCESS_ALL'  # PREPROCESS_ALL
+OP_MODE = 'TRAIN'  # PREPROCESS_ALL
                       # (GENERATE / SPLIT / MERGE)
                       # TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
