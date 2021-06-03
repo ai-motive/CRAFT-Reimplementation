@@ -1,9 +1,4 @@
-
-
-
 ###for icdar2015####
-
-
 
 import torch
 import torch.utils.data as data
@@ -18,8 +13,8 @@ import random
 from PIL import Image
 import torchvision.transforms as transforms
 import craft_utils
+import imgproc
 import Polygon as plg
-import time
 
 
 def ratio_area(h, w, box):
