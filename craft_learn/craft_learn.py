@@ -43,7 +43,7 @@ def load_craft_parameters(ini):
 
 
 def main_generate(ini, common_info, logger=None):
-    # Init. path variables
+    # Init. local variables
     vars = {}
     for key, val in ini.items():
         vars[key] = cs.replace_string_from_dict(val, common_info)
@@ -702,21 +702,21 @@ def main(args):
             main_merge(ini[MERGE], common_info, logger=logger)
 
     elif args.op_mode == GENERATE:
-        main_generate(ini[args.op_mode], common_info, logger=logger)
+        main_generate(ini[GENERATE], common_info, logger=logger)
     elif args.op_mode == SPLIT:
-        main_split(ini[args.op_mode], common_info, logger=logger)
+        main_split(ini[SPLIT], common_info, logger=logger)
     elif args.op_mode == MERGE:
-        main_merge(ini[args.op_mode], common_info, logger=logger)
+        main_merge(ini[MERGE], common_info, logger=logger)
     elif args.op_mode == TRAIN:
-        main_train(ini[args.op_mode], common_info, logger=logger)
+        main_train(ini[TRAIN], common_info, logger=logger)
     elif args.op_mode == TEST:
-        main_test(ini[args.op_mode], common_info, logger=logger)
+        main_test(ini[TEST], common_info, logger=logger)
     elif args.op_mode == TRAIN_TEST:
         ret, model_dir = main_train(ini[TRAIN], common_info, logger=logger)
         main_test(ini[TEST], common_info, logger=logger)
         print(" # Trained model directory is {}".format(model_dir))
     elif args.op_mode == SPLIT_TEXTLINE:
-        main_split_textline(ini[args.op_mode], common_info, logger=logger)
+        main_split_textline(ini[SPLIT_TEXTLINE], common_info, logger=logger)
     else:
         print(" @ Error: op_mode, {}, is incorrect.".format(args.op_mode))
 
@@ -725,8 +725,8 @@ def main(args):
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_type", required=True, choices=['TEXTLINE', 'KO', 'MATH', 'KO_MATH'], help="dataset type")
-    parser.add_argument("--op_mode", required=True, choices=['PREPROCESS_ALL', 'GENERATE', 'MERGE', 'SPLIT', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'], help="operation mode")
+    parser.add_argument("--dataset_type", required=True, choices=[TEXTLINE, KO, MATH, KO_MATH], help="dataset type")
+    parser.add_argument("--op_mode", required=True, choices=[PREPROCESS_ALL, GENERATE, MERGE, SPLIT, TRAIN, TEST, TRAIN_TEST, SPLIT_TEXTLINE], help="operation mode")
     parser.add_argument("--ini_fname", required=True, help="System code ini filename")
     parser.add_argument("--model_dir", default="", help="Model directory")
 
@@ -739,10 +739,12 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'TEXTLINE'  # KO / MATH / KO_MATH / TEXTLINE
-OP_MODE = 'SPLIT_TEXTLINE'  # PREPROCESS_ALL
-                      # (GENERATE / SPLIT / MERGE)
-                      # TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
+DATASET_TYPE = TEXTLINE  # KO / MATH / KO_MATH / TEXTLINE
+OP_MODE = SPLIT_TEXTLINE
+# PREPROCESS_ALL
+# (GENERATE / SPLIT / MERGE)
+# TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
+
 """
 [OP_MODE DESC.]
 GENERATE       : JSON을 읽어 텍스트라인을 CRAFT 형식으로 변환후 텍스트파일 저장
@@ -752,6 +754,7 @@ TRAIN          : total/train 폴더 데이터를 이용하여 CRAFT 학습 수�
 TEST           : total/test 폴더 데이터를 이용하여 CRAFT 평가 수행
 SPLIT_TEXTLINE : 각각의 ann 폴더의  데이터를 수식/비수식 영역으로 분리후 각각의 refine_ann 폴더에 JSON 파일 저장  
 """
+
 if DATASET_TYPE != 'TEXTLINE':
     INI_FNAME = _this_basename_ + '_{}'.format(DATASET_TYPE.lower()) + ".ini"
 else:
