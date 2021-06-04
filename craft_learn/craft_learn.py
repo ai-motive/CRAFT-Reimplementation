@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import argparse
+import shutil
 import numpy as np
 import torch
 import cv2
@@ -26,6 +27,7 @@ MARGIN = '\t' * 20
 KO, MATH, KO_MATH, TEXTLINE = 'KO', 'MATH', 'KO_MATH', 'TEXTLINE'  # DATASET_TYPE
 PREPROCESS_ALL, GENERATE, SPLIT, MERGE, TRAIN, TEST, TRAIN_TEST, SPLIT_TEXTLINE = \
     'PREPROCESS_ALL', 'GENERATE', 'SPLIT', 'MERGE', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'
+LINK, COPY = 'LINK', 'COPY'
 
 
 def load_craft_parameters(ini):
@@ -279,8 +281,8 @@ def main_split_textline(ini, common_info, logger=None):
     for key, val in ini.items():
         vars[key] = cs.replace_string_from_dict(val, common_info)
     img_mode = vars['img_mode']
-    link_, border_, save_detect_box_img_, save_refine_box_img_ = \
-        cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['border_']), \
+    link_, copy_, border_, save_detect_box_img_, save_refine_box_img_ = \
+        cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['copy_']), cs.string_to_boolean(vars['border_']), \
         cs.string_to_boolean(vars['save_detect_box_img_']), cs.string_to_boolean(vars['save_refine_box_img_'])
 
     # Init. CRAFT
@@ -300,8 +302,14 @@ def main_split_textline(ini, common_info, logger=None):
 
     # Preprocess datasets
     if link_:
-        link_datasets(src_dir_path=vars['textline_dataset_path'], dst_dir_path=vars['refine_dataset_path'],
-                      dir_names=project.datasets.keys(), except_dir_names=except_dir_names, tgt_dir_name='img/', logger=logger)
+        link_or_copy_datasets(src_dir_path=vars['textline_dataset_path'], dst_dir_path=vars['refine_dataset_path'],
+                              dir_names=project.datasets.keys(), except_dir_names=except_dir_names,
+                              tgt_dir_name='img/', mode=LINK, logger=logger)
+
+    if copy_:
+        link_or_copy_datasets(src_dir_path=vars['textline_dataset_path'], dst_dir_path=vars['refine_dataset_path'],
+                              dir_names=project.datasets.keys(), except_dir_names=except_dir_names,
+                              tgt_dir_name='ann/', mode=COPY, logger=logger)
 
     # Load and split textlines
     for dataset in project:
@@ -447,7 +455,7 @@ def main_split_textline(ini, common_info, logger=None):
     return True
 
 
-def link_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, tgt_dir_name='img/', logger=None):
+def link_or_copy_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, tgt_dir_name='img/', mode=LINK, logger=None):
     if dir_names:
         for dir_name in dir_names:
             if dir_name in except_dir_names:
@@ -464,15 +472,20 @@ def link_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_names=None, 
                 cg.folder_exists(dst_path, create_=True)
 
             # check & link img_path, ann_path
-            src_fnames = sorted(cg.get_filenames(src_path, extensions=ig.IMG_EXTENSIONS))
+            extensions = ig.IMG_EXTENSIONS if mode == LINK else jg.META_EXTENSION
+            src_fnames = sorted(cg.get_filenames(src_path, extensions=extensions))
             src_bnames = [os.path.basename(src_fname) for src_fname in src_fnames]
-            dst_fnames = sorted(cg.get_filenames(dst_path, extensions=ig.IMG_EXTENSIONS))
+            dst_fnames = sorted(cg.get_filenames(dst_path, extensions=extensions))
             dst_bnames = [os.path.basename(dst_fname) for dst_fname in dst_fnames]
 
             if any(src_bname not in dst_bnames for src_bname in src_bnames):
-                sym_cmd = 'ln "{}"* "{}"'.format(src_path, dst_path)  # to all files
-                subprocess.call(sym_cmd, shell=True)
-                logger.info(" # Link {} files {}\n{}->\t{}.".format(tgt_dir_name.replace('/', ''), src_path, MARGIN, dst_path))
+                if mode == LINK:
+                    sym_cmd = 'ln "{}"* "{}"'.format(src_path, dst_path)  # to all files
+                    subprocess.call(sym_cmd, shell=True)
+                elif mode == COPY:
+                    shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+
+                logger.info(" # {}} {} files {}\n{}->\t{}.".format(mode, tgt_dir_name.replace('/', ''), src_path, MARGIN, dst_path))
     else:
         logger.info(" [SPLIT-TEXTLINE] # Sorted dataset is empty !!!")
 
@@ -726,8 +739,8 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = 'KO'  # KO / MATH / KO_MATH / TEXTLINE
-OP_MODE = 'TRAIN'  # PREPROCESS_ALL
+DATASET_TYPE = 'TEXTLINE'  # KO / MATH / KO_MATH / TEXTLINE
+OP_MODE = 'SPLIT_TEXTLINE'  # PREPROCESS_ALL
                       # (GENERATE / SPLIT / MERGE)
                       # TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
 """
