@@ -284,10 +284,11 @@ def main_test(ini, model_dir=None, logger=None):
 def main_split_textline(ini, common_info, logger=None):
     # Init. path variables
     global box_color, rst_dir_name
-    except_dir_names = common_info['except_dir_names'].replace(' ', '').split(',')
     vars = {}
     for key, val in ini.items():
         vars[key] = cs.replace_string_from_dict(val, common_info)
+
+    except_dir_names = vars['except_dir_names'].replace(' ', '').split(',')
     img_mode = vars['img_mode']
     link_, copy_, border_, save_detect_box_img_, save_refine_box_img_ = \
         cs.string_to_boolean(vars['link_']), cs.string_to_boolean(vars['copy_']), cs.string_to_boolean(vars['border_']), \
