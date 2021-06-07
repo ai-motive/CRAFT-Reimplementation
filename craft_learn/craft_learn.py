@@ -24,10 +24,18 @@ _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
 MARGIN = '\t' * 20
-KO, MATH, KO_MATH, TEXTLINE = 'KO', 'MATH', 'KO_MATH', 'TEXTLINE'  # DATASET_TYPE
+
+# DATASET_TYPE
+KO, MATH, KO_MATH, TEXTLINE = 'KO', 'MATH', 'KO_MATH', 'TEXTLINE'
+
+# OP_MODE
 PREPROCESS_ALL, GENERATE, SPLIT, MERGE, TRAIN, TEST, TRAIN_TEST, SPLIT_TEXTLINE = \
     'PREPROCESS_ALL', 'GENERATE', 'SPLIT', 'MERGE', 'TRAIN', 'TEST', 'TRAIN_TEST', 'SPLIT_TEXTLINE'
+
 LINK, COPY = 'LINK', 'COPY'
+
+# ANN CLASSES (TABLE / GRAPH / TEXTLINE, KO, MATH)
+TABLE, GRAPH = 'TABLE', 'GRAPH'
 
 
 def load_craft_parameters(ini):
@@ -108,7 +116,7 @@ def main_split(ini, common_info, logger=None):
     train_ratio = float(vars['train_ratio'])
     test_ratio = round(1.0 - train_ratio, 2)
 
-    lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != 'TEXTLINE' else ''
+    lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != TEXTLINE else ''
     if lower_dataset_type:
         tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     else:
@@ -127,14 +135,14 @@ def main_split(ini, common_info, logger=None):
 
     # Apply symbolic link for gt & img path
     if len(gt_list) != 0:
-        for op_mode in ['train', 'test']:
-            if op_mode == 'train':
+        for op_mode in [TRAIN, TEST]:
+            if op_mode == TRAIN:
                 gt_list = train_gt_list
                 img_list = train_img_list
 
                 gt_link_path = train_gt_path
                 img_link_path = train_img_path
-            elif op_mode == 'test':
+            elif op_mode == TEST:
                 gt_list = test_gt_list
                 img_list = test_img_list
 
@@ -170,26 +178,26 @@ def main_merge(ini, common_info, logger=None):
     datasets = [dataset for dataset in os.listdir(vars['dataset_path']) if dataset != 'total']
     sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
 
-    lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != 'TEXTLINE' else ''
+    lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != TEXTLINE else ''
     if lower_dataset_type:
         tgt_dir = 'craft_{}_gt'.format(lower_dataset_type)
     else:
         tgt_dir = 'craft_gt'
     if len(sort_datasets) != 0:
         for dir_name in sort_datasets:
-            src_train_path, src_test_path = os.path.join(vars['dataset_path'], dir_name, 'train'), os.path.join(
-                vars['dataset_path'], dir_name, 'test')
-            src_train_img_path, src_train_gt_path = os.path.join(src_train_path, 'img/'), os.path.join(src_train_path,
-                                                                                                       tgt_dir + '/')
-            src_test_img_path, src_test_gt_path = os.path.join(src_test_path, 'img/'), os.path.join(src_test_path,
-                                                                                                    tgt_dir + '/')
+            src_train_path, src_test_path = os.path.join(vars['dataset_path'], dir_name, TRAIN.lower()), \
+                                                os.path.join(vars['dataset_path'], dir_name, TEST.lower())
+            src_train_img_path, src_train_gt_path = os.path.join(src_train_path, 'img/'), \
+                                                        os.path.join(src_train_path, tgt_dir + '/')
+            src_test_img_path, src_test_gt_path = os.path.join(src_test_path, 'img/'), \
+                                                    os.path.join(src_test_path, tgt_dir + '/')
 
-            dst_train_path, dst_test_path = os.path.join(vars['total_dataset_path'], 'train'), os.path.join(
-                vars['total_dataset_path'], 'test')
-            dst_train_img_path, dst_train_gt_path = os.path.join(dst_train_path, 'img/'), os.path.join(dst_train_path,
-                                                                                                       tgt_dir + '/')
-            dst_test_img_path, dst_test_gt_path = os.path.join(dst_test_path, 'img/'), os.path.join(dst_test_path,
-                                                                                                    tgt_dir + '/')
+            dst_train_path, dst_test_path = os.path.join(vars['total_dataset_path'], TRAIN.lower()), \
+                                                os.path.join(vars['total_dataset_path'], TEST.lower())
+            dst_train_img_path, dst_train_gt_path = os.path.join(dst_train_path, 'img/'), \
+                                                        os.path.join(dst_train_path, tgt_dir + '/')
+            dst_test_img_path, dst_test_gt_path = os.path.join(dst_test_path, 'img/'), \
+                                                    os.path.join(dst_test_path, tgt_dir + '/')
 
             if cg.folder_exists(dst_train_img_path) and cg.folder_exists(dst_train_gt_path) and \
                     cg.folder_exists(dst_test_img_path) and cg.folder_exists(dst_test_gt_path):
@@ -199,11 +207,11 @@ def main_merge(ini, common_info, logger=None):
                 cg.folder_exists(dst_test_img_path, create_=True), cg.folder_exists(dst_test_gt_path, create_=True)
 
             # Apply symbolic link for gt & img path
-            for op_mode in ['train', 'test']:
-                if op_mode == 'train':
+            for op_mode in [TRAIN, TEST]:
+                if op_mode == TRAIN:
                     src_img_path, src_gt_path = src_train_img_path, src_train_gt_path
                     dst_img_path, dst_gt_path = dst_train_img_path, dst_train_gt_path
-                elif op_mode == 'test':
+                elif op_mode == TEST:
                     src_img_path, src_gt_path = src_test_img_path, src_test_gt_path
                     dst_img_path, dst_gt_path = dst_test_img_path, dst_test_gt_path
 
@@ -233,7 +241,7 @@ def main_train(ini, common_info, logger=None):
     latest_model_path = os.path.join(latest_model_dir, vars['model_name'])
 
     train_args = [
-        '--tgt_class', common_info['tgt_class'].upper(),
+        '--tgt_class', common_info['tgt_class'],
         '--img_path', vars['train_img_path'],
         '--gt_path', vars['train_gt_path'],
         '--pretrain_model_path', latest_model_path,
@@ -290,8 +298,7 @@ def main_split_textline(ini, common_info, logger=None):
     device = torch.device('cuda' if (torch.cuda.is_available() and gpu_) else 'cpu')
 
     ko_model_dir, math_model_dir = cg.get_model_dir(root_dir=vars['ko_model_path'], model_file=vars['ko_model_name']), \
-                                   cg.get_model_dir(root_dir=vars['math_model_path'],
-                                                    model_file=vars['math_model_name'])
+                                        cg.get_model_dir(root_dir=vars['math_model_path'], model_file=vars['math_model_name'])
     ko_detector = get_detector(os.path.join(ko_model_dir, vars['ko_model_name']), device, quantize=False)
     math_detector = get_detector(os.path.join(math_model_dir, vars['math_model_name']), device, quantize=False)
 
@@ -355,7 +362,7 @@ def main_split_textline(ini, common_info, logger=None):
             # Get predict results
             pred_objs = []
             for detector in [ko_detector, math_detector]:
-                tgt_class = 'ko' if (detector is ko_detector) else ('math' if (detector is math_detector) else 'None')
+                tgt_class = KO if (detector is ko_detector) else (MATH if (detector is math_detector) else 'None')
 
                 # # Make border
                 border_margin = 0
@@ -385,12 +392,12 @@ def main_split_textline(ini, common_info, logger=None):
 
                 for h_box in horizontal_list:
                     pred_box = ic.Box(box=[[h_box[0], h_box[2]], [h_box[1], h_box[3]]])
-                    pred_obj = object.Object(name=tgt_class, box_obj=pred_box, description='')
+                    pred_obj = object.Object(name=tgt_class.lower(), box_obj=pred_box, description='')
                     pred_objs.append(pred_obj)
 
-                    if tgt_class == 'ko':
+                    if tgt_class == KO:
                         box_color = ig.BROWN
-                    if tgt_class == 'math':
+                    if tgt_class == MATH:
                         box_color = ig.MAGENTA
 
                     draw_detect_img = ip.draw_box_on_img(draw_detect_img, pred_box.flat_box, color=box_color, thickness=2)
@@ -398,7 +405,7 @@ def main_split_textline(ini, common_info, logger=None):
             # Save result image
             ko_model_epoch, math_model_epoch = vars['ko_model_name'].split('_')[-1].replace('.pth', ''), \
                                                vars['math_model_name'].split('_')[-1].replace('.pth', '')
-            rst_dir_name = 'ko_' + ko_model_epoch + '_' + 'math_' + math_model_epoch
+            rst_dir_name = f'{KO.lower()}_' + ko_model_epoch + '_' + f'{MATH.lower()}_' + math_model_epoch
             rst_dir_path = os.path.join(vars['rst_path'], rst_dir_name, 'draw_box')
             if save_detect_box_img_:
                 cg.folder_exists(rst_dir_path, create_=True)
@@ -414,9 +421,9 @@ def main_split_textline(ini, common_info, logger=None):
                     x_min, x_max, y_min, y_max = rf_rect2
                     box = (x_min, y_min, x_max, y_max)
 
-                    if rf_class == 'ko':
+                    if rf_class == KO.lower():
                         box_color = ig.BROWN
-                    if rf_class == 'math':
+                    if rf_class == MATH.lower():
                         box_color = ig.MAGENTA
 
                     # Draw boxes
@@ -442,7 +449,7 @@ def main_split_textline(ini, common_info, logger=None):
             else:
                 obj_id = 0
             refine_json_data, refine_obj_id = update_json_from_results(json_data, obj_id,
-                                                                       ['ko', 'math'], refine_gts)
+                                                                       [KO.lower(), MATH.lower()], refine_gts)
 
             # Save refined json
             rst_ann_fname = item_paths.ann_path.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
@@ -529,7 +536,7 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs):
         split_gts = []
         # 예측 값이 없는 경우
         if len(remove_objs) == 0:
-            split_gts.append([gt_box.rect4, '', 'math'])
+            split_gts.append([gt_box.rect4, '', MATH.lower()])
         else:
             # Create refined gts
             for k, remove_obj in enumerate(remove_objs):
@@ -598,8 +605,8 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs):
 
                     # class가 바뀔때
                     curr_class = refine_gts[-1][2]
-                    if (curr_class == 'ko' and not (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
-                            (curr_class == 'math' and (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
+                    if (curr_class == KO.lower() and not (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
+                            (curr_class == MATH.lower() and (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
                             next_ch == None:
                         break
 
@@ -618,17 +625,17 @@ def update_json_from_results(json_data, obj_id, class_names, results):
 
 
 def get_obj_data(obj_id, classTitle, box, value):
-    if classTitle == 'table':
+    if classTitle == TABLE.lower():
         classId = 2790491
         value = ''
-    elif classTitle == 'graph':
+    elif classTitle == GRAPH.lower():
         classId = 2772037
         value = ''
-    elif classTitle == 'textline':
+    elif classTitle == TEXTLINE.lower():
         classId = 2772036
-    elif classTitle == 'math':
+    elif classTitle == MATH.lower():
         classId = 2883527
-    elif classTitle == 'ko':
+    elif classTitle == KO.lower():
         classId = 2883530
 
     date = datetime.today().strftime("%Y%m%d%H%M%S")
