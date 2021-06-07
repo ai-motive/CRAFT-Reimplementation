@@ -175,7 +175,7 @@ def main_merge(ini, common_info, logger=None):
 
     cg.folder_exists(vars['total_dataset_path'], create_=True)
 
-    datasets = [dataset for dataset in os.listdir(vars['dataset_path']) if dataset != 'total']
+    datasets = [dataset for dataset in os.listdir(vars['dataset_path']) if (dataset != 'total') and ('meta.json' not in dataset)]
     sort_datasets = sorted(datasets, key=lambda x: (int(x.split('_')[0])))
 
     lower_dataset_type = common_info['dataset_type'].lower() if common_info['dataset_type'] != TEXTLINE else ''
