@@ -343,7 +343,7 @@ def main_split_textline(ini, common_info, logger=None):
                     continue
 
                 # Remove textline object
-                del ann.labels[idx]
+                ann = ann.delete_label(label)
 
                 if (label.geometry.right - label.geometry.left) <= 0 or (label.geometry.bottom - label.geometry.top) <= 0:
                     continue
@@ -485,7 +485,7 @@ def link_or_copy_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_name
                 elif mode == COPY:
                     shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
 
-                logger.info(" # {}} {} files {}\n{}->\t{}.".format(mode, tgt_dir_name.replace('/', ''), src_path, MARGIN, dst_path))
+                logger.info(" # {} {} files {}\n{}->\t{}.".format(mode, tgt_dir_name.replace('/', ''), src_path, MARGIN, dst_path))
     else:
         logger.info(" [SPLIT-TEXTLINE] # Sorted dataset is empty !!!")
 
