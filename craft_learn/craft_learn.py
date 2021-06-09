@@ -357,7 +357,7 @@ def main_split_textline(ini, common_info, logger=None):
                     continue
 
                 gt_box = ic.Box(box=[[label.geometry.left, label.geometry.top], [label.geometry.right, label.geometry.bottom]])
-                gt_obj = object.Object(name=TEXTLINE.lower(), box_obj=gt_box, description=label.description)
+                gt_obj = object.Object(name=TEXTLINE.lower(), box_obj=gt_box, description=label.description.strip())
                 gt_objs.append(gt_obj)
 
             # Get predict results
