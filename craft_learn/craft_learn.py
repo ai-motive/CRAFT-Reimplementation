@@ -413,7 +413,7 @@ def main_split_textline(ini, common_info, logger=None):
                 ig.imwrite(draw_detect_img, os.path.join(rst_dir_path, f'[{img_mode}] ' + item_name))
 
             # Compare GT. & PRED.
-            refine_gts = refine_ground_truths_by_predict_values(gt_objs, pred_objs)  # test input : GTS, PREDS
+            refine_gts = refine_ground_truths_by_predict_values(gt_objs, pred_objs, raw_img)  # test input : GTS, PREDS
 
             # Draw refined boxes & texts
             if save_refine_box_img_:
@@ -498,7 +498,7 @@ def link_or_copy_datasets(src_dir_path, dst_dir_path, dir_names, except_dir_name
         logger.info(" [SPLIT-TEXTLINE] # Sorted dataset is empty !!!")
 
 
-def refine_ground_truths_by_predict_values(gt_objs, pred_objs):
+def refine_ground_truths_by_predict_values(gt_objs, pred_objs, img):
     refine_gts = []
     for gt_idx, gt_obj in enumerate(gt_objs):
         gt_box = gt_obj.Box
@@ -564,11 +564,26 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs):
                         rect4 = ic.convert_rect2_to_rect4([remove_box.x1, remove_box.x2, gt_box.y1, gt_box.y2])
                         split_gts.append([rect4, '', remove_class])
 
+        # 이미지 처리를 통해 박스 좌표 교정
+        proc_gts = []
+        for i, split_gt in enumerate(split_gts):
+            split_gt_box, split_gt_text, split_gt_class = split_gt
+            [g_min_x, g_max_x, g_min_y, g_max_y] = ic.convert_rect4_to_rect2(split_gt_box)
+            crop_img = img[g_min_y:g_max_y, g_min_x:g_max_x]
+
+            crop_box = ip.get_binary_area_coordinates_by_threshold(crop_img, min_thresh=127, max_thresh=255)
+            crop_box_obj = ic.Box(crop_box)
+            proc_box = ic.calc_global_box_pos_in_box(g_box=[g_min_x, g_max_x, g_min_y, g_max_y],
+                                                     box=crop_box_obj.rect2,
+                                                     format='rect2')
+
+            proc_gts.append([ic.convert_rect2_to_rect4(proc_box), split_gt_text, split_gt_class])
+
         # pred_class를 기반으로 text filling
         ch_pos = 0
-        for l, split_gt in enumerate(split_gts):
-            split_gt_box, split_gt_text, split_gt_class = split_gt
-            refine_gts.append([split_gt_box, '', split_gt_class])
+        for l, proc_gt in enumerate(proc_gts):
+            proc_gt_box, proc_gt_text, proc_gt_class = proc_gt
+            refine_gts.append([proc_gt_box, '', proc_gt_class])
 
             gt_text = gt_obj.description
             for m, (prev_ch, curr_ch, next_ch) in enumerate(cs.get_prev_and_next(gt_text[ch_pos:])):
