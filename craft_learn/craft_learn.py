@@ -449,7 +449,7 @@ def main_split_textline(ini, common_info, logger=None):
                 obj_id = ann.labels[-1].geometry.sly_id + 1
             else:
                 obj_id = 0
-            refine_json_data, refine_obj_id = update_json_from_results(json_data, obj_id,
+            refine_json_data, refine_obj_id = update_json_from_results(ann.to_json(), obj_id,
                                                                        [KO.lower(), MATH.lower()], refine_gts)
 
             # Save refined json
@@ -457,7 +457,7 @@ def main_split_textline(ini, common_info, logger=None):
             with open(rst_ann_fname, 'w', encoding='utf-8') as f:
                 json.dump(refine_json_data, f, ensure_ascii=False, indent=4)
 
-            sly.logger.info('[{}/{}] Refined json path : {}'.format(item_idx + 1, len(dataset), item_paths.ann_path))
+            sly.logger.info('[{}/{}] Refined json path : {}'.format(item_idx + 1, len(dataset), rst_ann_fname))
 
     logger.info(" # {} in {} mode finished.".format(_this_basename_, OP_MODE))
     return True
