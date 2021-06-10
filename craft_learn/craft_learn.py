@@ -571,13 +571,14 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs, img):
             [g_min_x, g_max_x, g_min_y, g_max_y] = ic.convert_rect4_to_rect2(split_gt_box)
             crop_img = img[g_min_y:g_max_y, g_min_x:g_max_x]
 
-            crop_box = ip.get_binary_area_coordinates_by_threshold(crop_img, min_thresh=127, max_thresh=255)
-            crop_box_obj = ic.Box(crop_box)
-            proc_box = ic.calc_global_box_pos_in_box(g_box=[g_min_x, g_max_x, g_min_y, g_max_y],
-                                                     box=crop_box_obj.rect2,
-                                                     format='rect2')
+            crop_box, ret_ = ip.get_binary_area_coordinates_by_threshold(crop_img, min_thresh=127, max_thresh=255)
+            if ret_:
+                crop_box_obj = ic.Box(crop_box)
+                proc_box = ic.calc_global_box_pos_in_box(g_box=[g_min_x, g_max_x, g_min_y, g_max_y],
+                                                         box=crop_box_obj.rect2,
+                                                         format='rect2')
 
-            proc_gts.append([ic.convert_rect2_to_rect4(proc_box), split_gt_text, split_gt_class])
+                proc_gts.append([ic.convert_rect2_to_rect4(proc_box), split_gt_text, split_gt_class])
 
         # pred_class를 기반으로 text filling
         ch_pos = 0
