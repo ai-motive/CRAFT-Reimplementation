@@ -348,6 +348,30 @@ def main_split_textline(ini, common_info, logger=None):
             gt_objs = []
             for idx, label in reversed(list(enumerate(ann.labels))):
                 if label.obj_class.name != TEXTLINE.lower():
+                    crop_img = raw_img[label.geometry.top:label.geometry.bottom, label.geometry.left:label.geometry.right]
+                    if crop_img.size == 0:
+                        continue
+
+                    crop_box, ret_ = ip.get_binary_area_coordinates_by_threshold(crop_img, min_thresh=127,
+                                                                                 max_thresh=255)
+                    if ret_:
+                        crop_box_obj = ic.Box(crop_box)
+                        proc_box = ic.calc_global_box_pos_in_box(g_box=[label.geometry.left, label.geometry.right, label.geometry.top, label.geometry.bottom],
+                                                                 box=crop_box_obj.rect2,
+                                                                 format='rect2')
+                        min_x, max_x, min_y, max_y = proc_box
+                        # debug_img = raw_img[min_y:max_y, min_x:max_x]
+                        # print('Prev geo. : ', ann.labels[idx].geometry.left, ann.labels[idx].geometry.right, ann.labels[idx].geometry.top, ann.labels[idx].geometry.bottom)
+
+                        # Remove label
+                        ann = ann.delete_label(label)
+
+                        # update coordinates
+                        crop_labels = label.crop(sly.Rectangle(min_y, min_x, max_y, max_x))  # top, left, bottom, right,
+                        for crop_label in crop_labels:
+                            ann = ann.add_label(crop_label)
+                        # print('Next geo. : ', ann.labels[idx].geometry.left, ann.labels[idx].geometry.right, ann.labels[idx].geometry.top, ann.labels[idx].geometry.bottom)
+
                     continue
 
                 # Remove textline object
