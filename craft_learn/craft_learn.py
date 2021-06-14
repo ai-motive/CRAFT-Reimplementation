@@ -593,6 +593,9 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs, img):
         for i, split_gt in enumerate(split_gts):
             split_gt_box, split_gt_text, split_gt_class = split_gt
             [g_min_x, g_max_x, g_min_y, g_max_y] = ic.convert_rect4_to_rect2(split_gt_box)
+
+            # Convert negative value
+            g_min_x, g_max_x, g_min_y, g_max_y = max(0, g_min_x), max(0, g_max_x), max(0, g_min_y), max(0, g_max_y)
             crop_img = img[g_min_y:g_max_y, g_min_x:g_max_x]
 
             crop_box, ret_ = ip.get_binary_area_coordinates_by_threshold(crop_img, min_thresh=127, max_thresh=255)
