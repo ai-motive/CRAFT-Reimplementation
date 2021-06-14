@@ -306,7 +306,8 @@ def main_split_textline(ini, common_info, logger=None):
     easyocr_ini = cg.get_ini_parameters(os.path.join(_this_folder_, vars['ocr_ini_fname']))
     craft_params = load_craft_parameters(easyocr_ini['CRAFT'])
 
-    project = sly.Project(directory=vars['textline_dataset_path'], mode=sly.OpenMode.READ)
+    project = sly.Project(directory=vars['textline_dataset_path'], mode=sly.OpenMode.READ,
+                          block_directories=except_dir_names)
 
     # Preprocess datasets
     if link_:
@@ -322,10 +323,6 @@ def main_split_textline(ini, common_info, logger=None):
     # Load and split textlines
     for dataset in project:
         sly.logger.info('Processing dataset: {}/{}'.format(project.name, dataset.name))
-
-        if dataset.name in except_dir_names:
-            logger.info(" # {} has already been split. ".format(dataset.name))
-            continue
 
         for item_idx, item_name in enumerate(dataset):
             item_paths = dataset.get_item_paths(item_name)
