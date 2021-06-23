@@ -3,3 +3,9 @@ data/test/icdar2013/*.jpg
 data/test/icdar2015/*.jpg
 pretrain/*.pth
 __pycache__
+
+craft_learn/21*
+craft_learn/Log/*
+craft_learn/nohup.out
+pretrain/*
+result/*

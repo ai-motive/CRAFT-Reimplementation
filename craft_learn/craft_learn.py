@@ -34,8 +34,8 @@ PREPROCESS_ALL, GENERATE, SPLIT, MERGE, TRAIN, TEST, TRAIN_TEST, SPLIT_TEXTLINE 
 
 LINK, COPY = 'LINK', 'COPY'
 
-# ANN CLASSES (TABLE / GRAPH / TEXTLINE, KO, MATH)
-TABLE, GRAPH = 'TABLE', 'GRAPH'
+# ANN CLASSES (table / graph / textline / ko / math)
+table, graph, textline, ko, math = 'table', 'graph', 'textline', 'ko', 'math'
 
 
 def load_craft_parameters(ini):
@@ -334,7 +334,7 @@ def main_split_textline(ini, common_info, logger=None):
 
             # Draw textline box
             for label in ann.labels:
-                if label.obj_class.name == TEXTLINE.lower():
+                if label.obj_class.name == textline:
                     label.geometry.draw_contour(draw_detect_img, color=label.obj_class.color, config=label.obj_class.geometry_config, thickness=3)
                     label.geometry.draw_contour(draw_refine_img, color=label.obj_class.color, config=label.obj_class.geometry_config, thickness=3)
 
@@ -344,7 +344,7 @@ def main_split_textline(ini, common_info, logger=None):
             # Get textline ground truths
             gt_objs = []
             for idx, label in reversed(list(enumerate(ann.labels))):
-                if label.obj_class.name != TEXTLINE.lower():
+                if label.obj_class.name != textline:
                     crop_img = raw_img[label.geometry.top:label.geometry.bottom, label.geometry.left:label.geometry.right]
                     if crop_img.size == 0:
                         continue
@@ -378,13 +378,13 @@ def main_split_textline(ini, common_info, logger=None):
                     continue
 
                 gt_box = ic.Box(box=[[label.geometry.left, label.geometry.top], [label.geometry.right, label.geometry.bottom]])
-                gt_obj = object.Object(name=TEXTLINE.lower(), box_obj=gt_box, description=label.description.strip())
+                gt_obj = object.Object(name=textline, box_obj=gt_box, description=label.description.strip())
                 gt_objs.append(gt_obj)
 
             # Get predict results
             pred_objs = []
             for detector in [ko_detector, math_detector]:
-                tgt_class = KO if (detector is ko_detector) else (MATH if (detector is math_detector) else 'None')
+                tgt_class = ko if (detector is ko_detector) else (math if (detector is math_detector) else 'None')
 
                 # # Make border
                 border_margin = 0
@@ -414,12 +414,12 @@ def main_split_textline(ini, common_info, logger=None):
 
                 for h_box in horizontal_list:
                     pred_box = ic.Box(box=[[h_box[0], h_box[2]], [h_box[1], h_box[3]]])
-                    pred_obj = object.Object(name=tgt_class.lower(), box_obj=pred_box, description='')
+                    pred_obj = object.Object(name=tgt_class, box_obj=pred_box, description='')
                     pred_objs.append(pred_obj)
 
-                    if tgt_class == KO:
+                    if tgt_class == ko:
                         box_color = ig.BROWN
-                    if tgt_class == MATH:
+                    if tgt_class == math:
                         box_color = ig.MAGENTA
 
                     draw_detect_img = ip.draw_box_on_img(draw_detect_img, pred_box.flat_box, color=box_color, thickness=2)
@@ -427,7 +427,7 @@ def main_split_textline(ini, common_info, logger=None):
             # Save result image
             ko_model_epoch, math_model_epoch = vars['ko_model_name'].split('_')[-1].replace('.pth', ''), \
                                                vars['math_model_name'].split('_')[-1].replace('.pth', '')
-            rst_dir_name = f'{KO.lower()}_' + ko_model_epoch + '_' + f'{MATH.lower()}_' + math_model_epoch
+            rst_dir_name = f'{ko}_' + ko_model_epoch + '_' + f'{math}_' + math_model_epoch
             rst_dir_path = os.path.join(vars['rst_path'], rst_dir_name, 'draw_box')
             if save_detect_box_img_:
                 cg.folder_exists(rst_dir_path, create_=True)
@@ -443,9 +443,9 @@ def main_split_textline(ini, common_info, logger=None):
                     x_min, x_max, y_min, y_max = rf_rect2
                     box = (x_min, y_min, x_max, y_max)
 
-                    if rf_class == KO.lower():
+                    if rf_class == ko:
                         box_color = ig.BROWN
-                    if rf_class == MATH.lower():
+                    if rf_class == math:
                         box_color = ig.MAGENTA
 
                     # Draw boxes
@@ -471,7 +471,7 @@ def main_split_textline(ini, common_info, logger=None):
             else:
                 obj_id = 0
             refine_json_data, refine_obj_id = update_json_from_results(ann.to_json(), obj_id,
-                                                                       [KO.lower(), MATH.lower()], refine_gts)
+                                                                       [ko, math], refine_gts)
 
             # Save refined json
             rst_ann_fname = item_paths.ann_path.replace(vars['textline_dataset_path'], vars['refine_dataset_path'])
@@ -558,7 +558,7 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs, img):
         split_gts = []
         # 예측 값이 없는 경우
         if len(remove_objs) == 0:
-            split_gts.append([gt_box.rect4, '', MATH.lower()])
+            split_gts.append([gt_box.rect4, '', math])
         else:
             # Create refined gts
             for k, remove_obj in enumerate(remove_objs):
@@ -646,8 +646,8 @@ def refine_ground_truths_by_predict_values(gt_objs, pred_objs, img):
 
                     # class가 바뀔때
                     curr_class = refine_gts[-1][2]
-                    if (curr_class == KO.lower() and not (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
-                            (curr_class == MATH.lower() and (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
+                    if (curr_class == ko and not (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
+                            (curr_class == math and (cs.is_korean(next_ch)) and (next_ch != ' ')) or \
                             next_ch == None:
                         break
 
@@ -666,17 +666,17 @@ def update_json_from_results(json_data, obj_id, class_names, results):
 
 
 def get_obj_data(obj_id, classTitle, box, value):
-    if classTitle == TABLE.lower():
+    if classTitle == table:
         classId = 2790491
         value = ''
-    elif classTitle == GRAPH.lower():
+    elif classTitle == graph:
         classId = 2772037
         value = ''
-    elif classTitle == TEXTLINE.lower():
+    elif classTitle == textline:
         classId = 2772036
-    elif classTitle == MATH.lower():
+    elif classTitle == math:
         classId = 2883527
-    elif classTitle == KO.lower():
+    elif classTitle == ko:
         classId = 2883530
 
     date = datetime.today().strftime("%Y%m%d%H%M%S")
@@ -787,8 +787,8 @@ def parse_arguments(argv):
 
 
 SELF_TEST_ = True
-DATASET_TYPE = TEXTLINE  # KO / MATH / KO_MATH / TEXTLINE
-OP_MODE = SPLIT_TEXTLINE
+DATASET_TYPE = KO  # KO / MATH / KO_MATH / TEXTLINE
+OP_MODE = PREPROCESS_ALL
 # PREPROCESS_ALL
 # (GENERATE / SPLIT / MERGE)
 # TRAIN / TEST / TRAIN_TEST / SPLIT_TEXTLINE
@@ -803,7 +803,7 @@ TEST           : total/test 폴더 데이터를 이용하여 CRAFT 평가 수행
 SPLIT_TEXTLINE : 각각의 ann 폴더의  데이터를 수식/비수식 영역으로 분리후 각각의 refine_ann 폴더에 JSON 파일 저장  
 """
 
-if DATASET_TYPE != 'TEXTLINE':
+if DATASET_TYPE != TEXTLINE:
     INI_FNAME = _this_basename_ + '_{}'.format(DATASET_TYPE.lower()) + ".ini"
 else:
     INI_FNAME = _this_basename_ + ".ini"

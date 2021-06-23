@@ -20,6 +20,8 @@ from python_utils.json import general as jg
 _this_folder_ = os.path.dirname(os.path.abspath(__file__))
 _this_basename_ = os.path.splitext(os.path.basename(__file__))[0]
 
+# TGT_CLASSES (textline / ko / math)
+textline, ko, math = 'textline', 'ko', 'math'
 
 class Averager(object):
     """Compute average for torch.Tensor, used for loss average."""
@@ -150,8 +152,8 @@ def main(args, logger=None):
             rst_model_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + model_ext)
             rst_json_path = os.path.join(rst_model_dir, model_name + '_' + repr(epoch) + '.json')
         else:
-            rst_model_path = os.path.join(rst_model_dir, model_date + '-craft_mathflat_{}_'.format(args.tgt_class.lower()) + repr(epoch) + '.pth')
-            rst_json_path = os.path.join(rst_model_dir, model_name + '-craft_mathflat_{}_'.format(args.tgt_class.lower()) + repr(epoch) + '.json')
+            rst_model_path = os.path.join(rst_model_dir, model_date + '-craft_mathflat_{}_'.format(args.tgt_class) + repr(epoch) + '.pth')
+            rst_json_path = os.path.join(rst_model_dir, model_name + '-craft_mathflat_{}_'.format(args.tgt_class) + repr(epoch) + '.json')
 
         train_time_st = time.time()
         loss_value = 0
@@ -227,7 +229,7 @@ def main(args, logger=None):
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--tgt_class", required=True, choices=['TEXTLINE', 'KO', 'MATH'], help="dataset type")
+    parser.add_argument("--tgt_class", required=True, choices=[textline, ko, math], help="dataset type")
     parser.add_argument("--img_path", required=True, type=str, help="Train image file path")
     parser.add_argument("--gt_path", required=True, type=str, help="Train ground truth file path")
 
